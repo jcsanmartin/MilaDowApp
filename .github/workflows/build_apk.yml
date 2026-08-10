@@ -1,0 +1,47 @@
+name: Build Android APK (MilaDow)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.29.0'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies & Flet CLI
+        run: |
+          python -m pip install --upgrade pip
+          pip install flet flet-cli yt-dlp spotdl imageio-ffmpeg
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Build APK with Flet
+        run: |
+          flet build apk --project-name miladow --org com.miladow.app
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MilaDow-Android-APK
+          path: build/apk/*.apk

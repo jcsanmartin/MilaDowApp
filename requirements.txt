@@ -1,0 +1,5 @@
+flet>=0.86.4
+flet-cli>=0.86.4
+yt-dlp
+spotdl
+imageio-ffmpeg
