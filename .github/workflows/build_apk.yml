@@ -39,7 +39,7 @@ jobs:
 
       - name: Create Flet project build
         run: |
-          flet build apk --project-name miladow --org com.miladow.app
+          flet build apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
