@@ -4,14 +4,21 @@ import urllib.request
 import subprocess
 import tempfile
 import shutil
-import imageio_ffmpeg
+try:
+    import imageio_ffmpeg
+    HAS_IMAGEIO_FFMPEG = True
+except ImportError:
+    HAS_IMAGEIO_FFMPEG = False
+
 import yt_dlp
 
 def get_ffmpeg_path():
-    try:
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception:
-        return "ffmpeg"
+    if HAS_IMAGEIO_FFMPEG:
+        try:
+            return imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            pass
+    return "ffmpeg"
 
 class MediaDownloader:
     def __init__(self, output_dir, format_type="mp4", quality="720p", mode="single", playlist_limit=50,
