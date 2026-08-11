@@ -353,7 +353,7 @@ def main(page: ft.Page):
                 ft.dropdown.Option("single", text="🎵 Video individual"),
                 ft.dropdown.Option("playlist", text="📋 Playlist completa"),
             ]
-    # Opciones vinculadas al cambio de plataforma
+        rebuild_options_row()
 
     # Asignar on_change después de definir rebuild_options_row
     mode_dropdown.on_change = lambda e: rebuild_options_row()
