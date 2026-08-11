@@ -82,16 +82,32 @@ def main(page: ft.Page):
     header_logo = ft.Image(src=ICON_PNG, width=44, height=44, fit="contain", border_radius=8) \
         if os.path.exists(ICON_PNG) else ft.Icon(ft.Icons.FILE_DOWNLOAD_ROUNDED, color=ft.Colors.AMBER_400, size=36)
 
-    platform_tabs = ft.Tabs(
-        selected_index=0,
-        animation_duration=300,
-        tabs=[
-            ft.Tab(text="YouTube", icon=ft.Icons.PLAY_CIRCLE_FILL),
-            ft.Tab(text="TikTok", icon=ft.Icons.MUSIC_NOTE),
-            ft.Tab(text="Facebook", icon=ft.Icons.FACEBOOK),
-            ft.Tab(text="Spotify", icon=ft.Icons.HEADSET),
-        ],
-        expand=False,
+    # Botones de navegación simples (100% compatibles con Flet en Android)
+    current_platform_val = ["youtube"]
+
+    def set_platform(plat):
+        current_platform_val[0] = plat
+        # Resaltar botón activo
+        btn_yt.style = ft.ButtonStyle(color=ft.Colors.BLACK if plat=="youtube" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if plat=="youtube" else ft.Colors.GREY_800)
+        btn_tt.style = ft.ButtonStyle(color=ft.Colors.BLACK if plat=="tiktok" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if plat=="tiktok" else ft.Colors.GREY_800)
+        btn_fb.style = ft.ButtonStyle(color=ft.Colors.BLACK if plat=="facebook" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if plat=="facebook" else ft.Colors.GREY_800)
+        btn_sp.style = ft.ButtonStyle(color=ft.Colors.BLACK if plat=="spotify" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if plat=="spotify" else ft.Colors.GREY_800)
+        btn_yt.update()
+        btn_tt.update()
+        btn_fb.update()
+        btn_sp.update()
+        on_platform_change(None)
+
+    btn_yt = ft.FilledButton("YouTube", icon=ft.Icons.PLAY_CIRCLE_FILL, style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.AMBER_400), on_click=lambda e: set_platform("youtube"))
+    btn_tt = ft.FilledButton("TikTok", icon=ft.Icons.MUSIC_NOTE, style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: set_platform("tiktok"))
+    btn_fb = ft.FilledButton("Facebook", icon=ft.Icons.FACEBOOK, style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: set_platform("facebook"))
+    btn_sp = ft.FilledButton("Spotify", icon=ft.Icons.HEADSET, style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: set_platform("spotify"))
+
+    platform_nav_row = ft.Row(
+        [btn_yt, btn_tt, btn_fb, btn_sp],
+        alignment=ft.MainAxisAlignment.CENTER,
+        spacing=6,
+        wrap=True,
     )
 
     url_input = ft.TextField(
@@ -252,13 +268,8 @@ def main(page: ft.Page):
         spacing=8,
     )
 
-    PLATFORM_LIST = ["youtube", "tiktok", "facebook", "spotify"]
-
     def get_current_platform():
-        idx = platform_tabs.selected_index if platform_tabs.selected_index is not None else 0
-        if 0 <= idx < len(PLATFORM_LIST):
-            return PLATFORM_LIST[idx]
-        return "youtube"
+        return current_platform_val[0]
 
     def rebuild_options_row(is_tiktok_override=None):
         """Reconstruye dinámicamente la sección de opciones según la plataforma y modo actuales."""
@@ -342,9 +353,7 @@ def main(page: ft.Page):
                 ft.dropdown.Option("single", text="🎵 Video individual"),
                 ft.dropdown.Option("playlist", text="📋 Playlist completa"),
             ]
-        rebuild_options_row()
-
-    platform_tabs.on_change = on_platform_change
+    # Opciones vinculadas al cambio de plataforma
 
     # Asignar on_change después de definir rebuild_options_row
     mode_dropdown.on_change = lambda e: rebuild_options_row()
@@ -557,7 +566,7 @@ def main(page: ft.Page):
             ),
             ft.Text("Tu descargador multimedia (YouTube, TikTok & Spotify)", size=13, color=ft.Colors.GREY_400),
             ft.Container(height=5),
-            platform_tabs,
+            platform_nav_row,
             ft.Container(height=5),
             url_input,
             ft.Container(height=5),
