@@ -129,7 +129,8 @@ def main(page: ft.Page):
             path_input.update()
             save_config({"last_folder": e.path})
 
-    folder_picker = ft.FilePicker(on_result=on_folder_result)
+    folder_picker = ft.FilePicker()
+    folder_picker.on_result = on_folder_result
     page.overlay.append(folder_picker)
 
     def pick_folder(e):
@@ -226,7 +227,8 @@ def main(page: ft.Page):
             cookies_file_path.value = e.files[0].path
             cookies_file_path.update()
 
-    cookies_picker = ft.FilePicker(on_result=on_cookies_file_result)
+    cookies_picker = ft.FilePicker()
+    cookies_picker.on_result = on_cookies_file_result
     page.overlay.append(cookies_picker)
 
     def pick_cookies_file(e):
