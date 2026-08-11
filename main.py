@@ -82,18 +82,15 @@ def main(page: ft.Page):
     header_logo = ft.Image(src=ICON_PNG, width=44, height=44, fit="contain", border_radius=8) \
         if os.path.exists(ICON_PNG) else ft.Icon(ft.Icons.FILE_DOWNLOAD_ROUNDED, color=ft.Colors.AMBER_400, size=36)
 
-    platform_selector = ft.RadioGroup(
-        content=ft.Row(
-            [
-                ft.Radio(value="youtube", label="🎥 YouTube"),
-                ft.Radio(value="tiktok", label="🎵 TikTok"),
-                ft.Radio(value="facebook", label="📹 Facebook"),
-                ft.Radio(value="spotify", label="🎧 Spotify"),
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            wrap=True,
-        ),
-        value="youtube",
+    platform_selector = ft.SegmentedButton(
+        segments=[
+            ft.Segment(value="youtube", label=ft.Text("YouTube"), icon=ft.Icon(ft.Icons.PLAY_CIRCLE_FILL)),
+            ft.Segment(value="tiktok", label=ft.Text("TikTok"), icon=ft.Icon(ft.Icons.MUSIC_NOTE)),
+            ft.Segment(value="facebook", label=ft.Text("FB"), icon=ft.Icon(ft.Icons.FACEBOOK)),
+            ft.Segment(value="spotify", label=ft.Text("Spotify"), icon=ft.Icon(ft.Icons.HEADSET)),
+        ],
+        selected={"youtube"},
+        allow_multiple_selection=False,
     )
 
     url_input = ft.TextField(
@@ -254,9 +251,14 @@ def main(page: ft.Page):
         spacing=8,
     )
 
+    def get_current_platform():
+        if isinstance(platform_selector.selected, set) and len(platform_selector.selected) > 0:
+            return list(platform_selector.selected)[0]
+        return "youtube"
+
     def rebuild_options_row(is_tiktok_override=None):
         """Reconstruye dinámicamente la sección de opciones según la plataforma y modo actuales."""
-        current_platform = platform_selector.value
+        current_platform = get_current_platform()
         is_tiktok = current_platform == "tiktok"
         is_facebook = current_platform == "facebook"
         is_spotify = current_platform == "spotify"
@@ -277,10 +279,8 @@ def main(page: ft.Page):
         controls = []
 
         if is_spotify:
-            # Spotify: solo mostrar campos de credenciales
             controls.append(
-                ft.Text("📌 Credenciales de Spotify (opcional, mejora estabilidad)",
-                        size=12, color=ft.Colors.GREY_400, italic=True)
+                ft.Text("📌 Credenciales de Spotify (opcional)", size=11, color=ft.Colors.GREY_400, italic=True)
             )
             controls.append(spotify_client_id_input)
             controls.append(spotify_client_secret_input)
@@ -290,7 +290,6 @@ def main(page: ft.Page):
             spotify_client_id_input.visible = False
             spotify_client_secret_input.visible = False
 
-            # Fila 1: modo + formato + calidad
             row1_items = []
             if is_youtube:
                 row1_items.append(mode_dropdown)
@@ -299,56 +298,22 @@ def main(page: ft.Page):
                 quality_dropdown.disabled = (format_dropdown.value == "mp3")
                 row1_items.append(quality_dropdown)
             if use_cookies:
-                cookie_browser_dropdown.tooltip = (
-                    "Cookies del navegador (opcional, para videos privados de Facebook)"
-                    if is_facebook else
-                    "Usa cookies si el video de TikTok es privado/restringido"
-                )
                 row1_items.append(cookie_browser_dropdown)
-            controls.append(ft.Row(row1_items, spacing=10, alignment=ft.MainAxisAlignment.CENTER, wrap=True))
+            controls.append(ft.Row(row1_items, spacing=8, alignment=ft.MainAxisAlignment.CENTER, wrap=True))
 
-            # Fila 2: formato para Facebook (sin modo playlist, sin calidad)
             if is_facebook:
                 controls.append(
-                    ft.Text(
-                        "ℹ️ Facebook: pega el enlace del video. Videos públicos no necesitan cookies.",
-                        size=11, color=ft.Colors.BLUE_200, italic=True,
-                        text_align=ft.TextAlign.CENTER,
-                    )
+                    ft.Text("ℹ️ Facebook: pega el enlace del video público.", size=11, color=ft.Colors.BLUE_200, italic=True, text_align=ft.TextAlign.CENTER)
                 )
 
-            # Fila 3: límite de playlist (solo YouTube + Playlist)
             if is_playlist:
                 controls.append(
-                    ft.Row(
-                        [
-                            ft.Text("📋 ¿Cuántos videos descargar?", size=13,
-                                    color=ft.Colors.AMBER_200, weight=ft.FontWeight.W_500),
-                            playlist_limit_input,
-                        ],
-                        spacing=12,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    )
+                    ft.Row([ft.Text("📋 Límite de playlist:", size=12), playlist_limit_input], spacing=8, alignment=ft.MainAxisAlignment.CENTER)
                 )
 
-            # Fila 4: cookies archivo (TikTok / Facebook)
             if is_file_cookie:
                 controls.append(
-                    ft.Row(
-                        [cookies_file_path, cookies_file_btn],
-                        spacing=5,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    )
-                )
-
-            # Fila 5: advertencia cookies
-            if use_cookies:
-                controls.append(
-                    ft.Text(
-                        "⚠️ Si usas cookies del navegador, ciérralo antes de descargar o usa un archivo cookies.txt",
-                        size=11, color=ft.Colors.ORANGE_300, italic=True,
-                        text_align=ft.TextAlign.CENTER,
-                    )
+                    ft.Row([cookies_file_path, cookies_file_btn], spacing=5, alignment=ft.MainAxisAlignment.CENTER)
                 )
 
         options_container.controls = controls
@@ -358,26 +323,19 @@ def main(page: ft.Page):
             url_input.update()
 
     def on_platform_change(e):
-        platform = platform_selector.value
-        if platform == "tiktok":
-            mode_dropdown.options = [
-                ft.dropdown.Option("single", text="📹 Video de TikTok"),
-            ]
-            mode_dropdown.value = "single"
-        elif platform == "facebook":
-            mode_dropdown.options = [
-                ft.dropdown.Option("single", text="📹 Video de Facebook"),
-            ]
+        platform = get_current_platform()
+        if platform in ["tiktok", "facebook"]:
+            mode_dropdown.options = [ft.dropdown.Option("single", text="📹 Video")]
             mode_dropdown.value = "single"
         elif platform == "spotify":
             mode_dropdown.options = [
-                ft.dropdown.Option("single", text="🎵 Canción individual"),
-                ft.dropdown.Option("playlist", text="📋 Playlist completa"),
+                ft.dropdown.Option("single", text="🎵 Canción"),
+                ft.dropdown.Option("playlist", text="📋 Playlist"),
             ]
             mode_dropdown.value = "single"
         else:  # youtube
             mode_dropdown.options = [
-                ft.dropdown.Option("single", text="🎵 Un solo video"),
+                ft.dropdown.Option("single", text="🎵 Video individual"),
                 ft.dropdown.Option("playlist", text="📋 Playlist completa"),
             ]
         rebuild_options_row()
@@ -481,7 +439,7 @@ def main(page: ft.Page):
     def btn_click(e):
         url = url_input.value.strip()
         out_dir = path_input.value.strip()
-        platform = platform_selector.value
+        platform = get_current_platform()
         is_tiktok = platform == "tiktok"
         is_facebook = platform == "facebook"
         platform_name = {"tiktok": "TikTok", "youtube": "YouTube", "spotify": "Spotify", "facebook": "Facebook"}[platform]
