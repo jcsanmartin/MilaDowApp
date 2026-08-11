@@ -103,41 +103,65 @@ def main(page: ft.Page):
         prefix_icon=ft.Icons.LINK
     )
 
-    # Configuración de ubicación por defecto y compatibilidad móvil
+    # Lista de ubicaciones predefinidas en Android / Móvil
+    android_downloads = "/storage/emulated/0/Download/MilaDow"
+    android_music = "/storage/emulated/0/Music/MilaDow"
+    android_movies = "/storage/emulated/0/Movies/MilaDow"
+
     default_dir = last_folder
-    if not default_dir:
-        # En Android se usa el almacenamiento interno público /storage/emulated/0/Download/MilaDow
+    if not default_dir or "Users" in default_dir:
         if os.path.exists("/storage/emulated/0/Download"):
-            default_dir = "/storage/emulated/0/Download/MilaDow"
-        elif os.path.exists("/storage/emulated/0"):
-            default_dir = "/storage/emulated/0/MilaDow"
+            default_dir = android_downloads
         else:
             default_dir = os.path.join(os.path.expanduser("~"), "Downloads")
 
     path_input = ft.TextField(
         label="Carpeta de Destino",
         value=default_dir,
-        hint_text="Selecciona dónde guardar los archivos...",
+        hint_text="Ubicación donde se guardan las descargas",
         expand=True,
         prefix_icon=ft.Icons.FOLDER
     )
 
-    # FilePicker de Flet para seleccionar carpeta (compatible con PC y Móvil)
-    def on_folder_result(e: ft.FilePickerResultEvent):
-        if e.path:
-            path_input.value = e.path
-            path_input.update()
-            save_config({"last_folder": e.path})
+    def set_folder(path):
+        path_input.value = path
+        path_input.update()
+        save_config({"last_folder": path})
+        folder_dialog.open = False
+        page.update()
 
-    folder_picker = ft.FilePicker()
-    folder_picker.on_result = on_folder_result
-    page.overlay.append(folder_picker)
+    folder_dialog = ft.AlertDialog(
+        title=ft.Text("Ubicación de Descargas"),
+        content=ft.Column([
+            ft.Text("Selecciona dónde guardar tus descargas en el almacenamiento del celular:", size=13),
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.DOWNLOAD),
+                title=ft.Text("Carpeta Descargas"),
+                subtitle=ft.Text("Download/MilaDow"),
+                on_click=lambda e: set_folder(android_downloads)
+            ),
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.MUSIC_NOTE),
+                title=ft.Text("Carpeta Música"),
+                subtitle=ft.Text("Music/MilaDow"),
+                on_click=lambda e: set_folder(android_music)
+            ),
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.MOVIE),
+                title=ft.Text("Carpeta Películas/Videos"),
+                subtitle=ft.Text("Movies/MilaDow"),
+                on_click=lambda e: set_folder(android_movies)
+            ),
+        ], height=220, tight=True),
+        actions=[
+            ft.TextButton("Cancelar", on_click=lambda e: setattr(folder_dialog, 'open', False) or page.update())
+        ]
+    )
+    page.overlay.append(folder_dialog)
 
     def pick_folder(e):
-        try:
-            folder_picker.get_directory_path(dialog_title="Selecciona la Carpeta de Destino")
-        except Exception:
-            pass
+        folder_dialog.open = True
+        page.update()
 
     folder_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, tooltip="Seleccionar carpeta", on_click=pick_folder)
 
@@ -221,27 +245,7 @@ def main(page: ft.Page):
         read_only=True
     )
 
-    # FilePicker para cookies.txt
-    def on_cookies_file_result(e: ft.FilePickerResultEvent):
-        if e.files and len(e.files) > 0:
-            cookies_file_path.value = e.files[0].path
-            cookies_file_path.update()
-
-    cookies_picker = ft.FilePicker()
-    cookies_picker.on_result = on_cookies_file_result
-    page.overlay.append(cookies_picker)
-
-    def pick_cookies_file(e):
-        try:
-            cookies_picker.pick_files(
-                dialog_title="Selecciona tu archivo cookies.txt",
-                allowed_extensions=["txt"],
-                allow_multiple=False
-            )
-        except Exception:
-            pass
-
-    cookies_file_btn = ft.IconButton(icon=ft.Icons.FILE_OPEN, tooltip="Seleccionar archivo cookies.txt", on_click=pick_cookies_file)
+    cookies_file_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, tooltip="Archivos cookies.txt", on_click=lambda e: None)
 
     # Contenedor dinámico que se reconstruye cuando cambia la plataforma o modo
     options_container = ft.Column(
