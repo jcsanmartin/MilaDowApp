@@ -82,15 +82,16 @@ def main(page: ft.Page):
     header_logo = ft.Image(src=ICON_PNG, width=44, height=44, fit="contain", border_radius=8) \
         if os.path.exists(ICON_PNG) else ft.Icon(ft.Icons.FILE_DOWNLOAD_ROUNDED, color=ft.Colors.AMBER_400, size=36)
 
-    platform_selector = ft.SegmentedButton(
-        segments=[
-            ft.Segment(value="youtube", label=ft.Text("YouTube"), icon=ft.Icon(ft.Icons.PLAY_CIRCLE_FILL)),
-            ft.Segment(value="tiktok", label=ft.Text("TikTok"), icon=ft.Icon(ft.Icons.MUSIC_NOTE)),
-            ft.Segment(value="facebook", label=ft.Text("FB"), icon=ft.Icon(ft.Icons.FACEBOOK)),
-            ft.Segment(value="spotify", label=ft.Text("Spotify"), icon=ft.Icon(ft.Icons.HEADSET)),
+    platform_tabs = ft.Tabs(
+        selected_index=0,
+        animation_duration=300,
+        tabs=[
+            ft.Tab(text="YouTube", icon=ft.Icons.PLAY_CIRCLE_FILL),
+            ft.Tab(text="TikTok", icon=ft.Icons.MUSIC_NOTE),
+            ft.Tab(text="Facebook", icon=ft.Icons.FACEBOOK),
+            ft.Tab(text="Spotify", icon=ft.Icons.HEADSET),
         ],
-        selected={"youtube"},
-        allow_multiple_selection=False,
+        expand=False,
     )
 
     url_input = ft.TextField(
@@ -251,9 +252,12 @@ def main(page: ft.Page):
         spacing=8,
     )
 
+    PLATFORM_LIST = ["youtube", "tiktok", "facebook", "spotify"]
+
     def get_current_platform():
-        if isinstance(platform_selector.selected, set) and len(platform_selector.selected) > 0:
-            return list(platform_selector.selected)[0]
+        idx = platform_tabs.selected_index if platform_tabs.selected_index is not None else 0
+        if 0 <= idx < len(PLATFORM_LIST):
+            return PLATFORM_LIST[idx]
         return "youtube"
 
     def rebuild_options_row(is_tiktok_override=None):
@@ -340,7 +344,7 @@ def main(page: ft.Page):
             ]
         rebuild_options_row()
 
-    platform_selector.on_change = on_platform_change
+    platform_tabs.on_change = on_platform_change
 
     # Asignar on_change después de definir rebuild_options_row
     mode_dropdown.on_change = lambda e: rebuild_options_row()
@@ -553,7 +557,7 @@ def main(page: ft.Page):
             ),
             ft.Text("Tu descargador multimedia (YouTube, TikTok & Spotify)", size=13, color=ft.Colors.GREY_400),
             ft.Container(height=5),
-            platform_selector,
+            platform_tabs,
             ft.Container(height=5),
             url_input,
             ft.Container(height=5),
