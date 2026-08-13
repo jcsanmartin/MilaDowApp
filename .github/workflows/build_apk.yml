@@ -43,10 +43,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Configure Gradle properties (Fix NoHttpResponseException)
+        run: |
+          mkdir -p ~/.gradle
+          echo "systemProp.http.keepAlive=false" >> ~/.gradle/gradle.properties
+          echo "systemProp.https.keepAlive=false" >> ~/.gradle/gradle.properties
+          echo "systemProp.http.conn.keepAlive=false" >> ~/.gradle/gradle.properties
+          echo "systemProp.https.conn.keepAlive=false" >> ~/.gradle/gradle.properties
+          echo "systemProp.http.socketTimeout=120000" >> ~/.gradle/gradle.properties
+          echo "systemProp.https.socketTimeout=120000" >> ~/.gradle/gradle.properties
+          echo "systemProp.http.connectionTimeout=120000" >> ~/.gradle/gradle.properties
+          echo "systemProp.https.connectionTimeout=120000" >> ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Djava.net.preferIPv4Stack=true -Xmx2048m" >> ~/.gradle/gradle.properties
+
       - name: Install dependencies & Flet CLI
         run: |
           python -m pip install --upgrade pip
           pip install flet flet-cli yt-dlp spotdl imageio-ffmpeg
+
 
       - name: Build APK (with automatic retry on network failure)
         uses: nick-fields/retry@v3
