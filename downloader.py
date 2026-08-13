@@ -42,11 +42,25 @@ class MediaDownloader:
         self.spotify_client_secret = spotify_client_secret
         self.ffmpeg_path = get_ffmpeg_path()
 
-        if not os.path.exists(self.output_dir):
-            try:
-                os.makedirs(self.output_dir)
-            except Exception as e:
-                self._emit_error(f"Error al crear el directorio: {e}")
+        # Asegurar permisos de escritura en el directorio de salida
+        try:
+            if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir, exist_ok=True)
+            # Prueba de escritura
+            test_file = os.path.join(self.output_dir, ".perm_test")
+            with open(test_file, "w") as f:
+                f.write("ok")
+            os.remove(test_file)
+        except Exception as e:
+            # Fallback seguro a la carpeta pública de descargas o interna si la carpeta elegida está restringida por Android
+            fallback_dir = "/storage/emulated/0/Download/MilaDow"
+            if not os.path.exists(fallback_dir):
+                try:
+                    os.makedirs(fallback_dir, exist_ok=True)
+                except Exception:
+                    fallback_dir = tempfile.gettempdir()
+            self._emit_log(f"⚠️ Aviso de permisos: No se pudo escribir en '{self.output_dir}'. Guardando en '{fallback_dir}'...")
+            self.output_dir = fallback_dir
 
     def _emit_log(self, msg):
         if self.log_callback:
