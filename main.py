@@ -202,13 +202,13 @@ def main(page: ft.Page):
     quality_dropdown = ft.Dropdown(
         label="Calidad",
         options=[
-            ft.dropdown.Option("1080p"),
-            ft.dropdown.Option("720p"),
-            ft.dropdown.Option("480p"),
-            ft.dropdown.Option("360p"),
+            ft.dropdown.Option("best", text="⭐ Mejor calidad"),
+            ft.dropdown.Option("720p", text="⚡ 720p (Rápido y fluido)"),
+            ft.dropdown.Option("1080p", text="🎬 1080p (Full HD)"),
+            ft.dropdown.Option("480p", text="📱 480p (Ahorro de datos)"),
         ],
         value="720p",
-        width=150,
+        width=190,
     )
 
     spotify_client_id_input = ft.TextField(
@@ -236,19 +236,14 @@ def main(page: ft.Page):
     )
 
     cookie_browser_dropdown = ft.Dropdown(
-        label="🍪 Cookies del Navegador",
+        label="🍪 Cookies (Opcional)",
         options=[
             ft.dropdown.Option("none", text="Sin cookies"),
-            ft.dropdown.Option("chrome", text="Google Chrome"),
-            ft.dropdown.Option("edge", text="Microsoft Edge"),
-            ft.dropdown.Option("firefox", text="Mozilla Firefox"),
-            ft.dropdown.Option("opera", text="Opera"),
-            ft.dropdown.Option("brave", text="Brave"),
-            ft.dropdown.Option("file", text="📄 Archivo cookies.txt"),
+            ft.dropdown.Option("file", text="📄 Cargar cookies.txt"),
         ],
         value="none",
         width=220,
-        tooltip="Usa cookies si el video de TikTok es privado/restringido"
+        tooltip="Usa cookies.txt si el video de TikTok/YouTube requiere sesión"
     )
 
     cookies_file_path = ft.TextField(
@@ -310,8 +305,8 @@ def main(page: ft.Page):
                 row1_items.append(mode_dropdown)
             row1_items.append(format_dropdown)
             if is_youtube:
-                quality_dropdown.disabled = (format_dropdown.value == "mp3")
-                row1_items.append(quality_dropdown)
+                if format_dropdown.value != "mp3":
+                    row1_items.append(quality_dropdown)
             if use_cookies:
                 row1_items.append(cookie_browser_dropdown)
             controls.append(ft.Row(row1_items, spacing=8, alignment=ft.MainAxisAlignment.CENTER, wrap=True))
@@ -558,13 +553,209 @@ def main(page: ft.Page):
         visible=False,
     )
 
+    # ==========================================
+    # REPRODUCTOR MULTIMEDIA & BIBLIOTECA
+    # ==========================================
+    from media_player import MediaLibrary
+    media_lib = MediaLibrary()
+
+    current_tab = ["downloader"]  # "downloader" o "player"
+    current_media_filter = ["all"]  # "all", "folders", "music", "videos"
+    scanned_media = []
+
+    # Estado del reproductor
+    playing_state = {
+        'file': None,
+        'is_playing': False,
+        'audio_ctrl': None,
+        'video_ctrl': None
+    }
+
+    # Mini Player UI
+    now_playing_title = ft.Text("Ningún archivo en reproducción", size=13, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE, overflow=ft.TextOverflow.ELLIPSIS)
+    play_pause_btn = ft.IconButton(icon=ft.Icons.PLAY_ARROW_ROUNDED, icon_size=28, icon_color=ft.Colors.AMBER_400, on_click=lambda e: toggle_play_pause())
+    mini_player_container = ft.Container(
+        content=ft.Row([
+            ft.Icon(ft.Icons.MUSIC_NOTE, color=ft.Colors.AMBER_400, size=24),
+            ft.Container(content=now_playing_title, expand=True),
+            play_pause_btn
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        bgcolor=ft.Colors.GREY_900,
+        padding=10,
+        border_radius=10,
+        visible=False
+    )
+
+    # Vista de Video Integrado
+    video_container = ft.Container(height=220, visible=False, border_radius=10, bgcolor=ft.Colors.BLACK)
+
+    def toggle_play_pause():
+        if playing_state['audio_ctrl']:
+            if playing_state['is_playing']:
+                playing_state['audio_ctrl'].pause()
+                playing_state['is_playing'] = False
+                play_pause_btn.icon = ft.Icons.PLAY_ARROW_ROUNDED
+            else:
+                playing_state['audio_ctrl'].resume()
+                playing_state['is_playing'] = True
+                play_pause_btn.icon = ft.Icons.PAUSE_ROUNDED
+            play_pause_btn.update()
+
+    def play_media_item(item):
+        playing_state['file'] = item
+        now_playing_title.value = f"▶ {item['name']}"
+        mini_player_container.visible = True
+        play_pause_btn.icon = ft.Icons.PAUSE_ROUNDED
+
+        # Limpiar audio anterior
+        if playing_state['audio_ctrl'] and playing_state['audio_ctrl'] in page.overlay:
+            try:
+                playing_state['audio_ctrl'].pause()
+                page.overlay.remove(playing_state['audio_ctrl'])
+            except Exception:
+                pass
+
+        if item['is_video']:
+            # Reproducción de Video MP4
+            video_ctrl = ft.Video(
+                media=ft.VideoMedia(item['path']),
+                playlist=[ft.VideoMedia(item['path'])],
+                autoplay=True,
+                show_controls=True,
+                height=220,
+            )
+            video_container.content = video_ctrl
+            video_container.visible = True
+            playing_state['video_ctrl'] = video_ctrl
+            playing_state['audio_ctrl'] = None
+            playing_state['is_playing'] = True
+        else:
+            # Reproducción de Audio MP3 / M4A (Soporta Background Audio en Android)
+            video_container.visible = False
+            audio_ctrl = ft.Audio(
+                src=item['path'],
+                autoplay=True,
+                volume=1.0,
+                balance=0.0,
+                on_state_changed=lambda e: None
+            )
+            page.overlay.append(audio_ctrl)
+            playing_state['audio_ctrl'] = audio_ctrl
+            playing_state['video_ctrl'] = None
+            playing_state['is_playing'] = True
+
+        video_container.update()
+        mini_player_container.update()
+        page.update()
+
+    media_list_view = ft.ListView(height=350, spacing=8, auto_scroll=False)
+
+    def render_media_list():
+        media_list_view.controls.clear()
+        flt = current_media_filter[0]
+
+        items_to_show = scanned_media
+        if flt == "music":
+            items_to_show = [m for m in scanned_media if not m['is_video']]
+        elif flt == "videos":
+            items_to_show = [m for m in scanned_media if m['is_video']]
+
+        if flt == "folders":
+            # Agrupar por carpeta
+            folders = {}
+            for item in scanned_media:
+                f_name = item['folder']
+                if f_name not in folders:
+                    folders[f_name] = []
+                folders[f_name].append(item)
+
+            for f_name, f_items in folders.items():
+                folder_tile = ft.ExpansionTile(
+                    title=ft.Text(f"📁 {f_name} ({len(f_items)})", weight=ft.FontWeight.BOLD),
+                    subtitle=ft.Text(f_items[0]['folder_path'], size=11, color=ft.Colors.GREY_400),
+                    controls=[
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.VIDEO_LIBRARY if it['is_video'] else ft.Icons.MUSIC_NOTE, color=ft.Colors.AMBER_400 if not it['is_video'] else ft.Colors.BLUE_400),
+                            title=ft.Text(it['name'], size=13, overflow=ft.TextOverflow.ELLIPSIS),
+                            subtitle=ft.Text(f"{it['size_mb']} MB", size=11),
+                            on_click=lambda e, item=it: play_media_item(item)
+                        ) for it in f_items
+                    ]
+                )
+                media_list_view.controls.append(folder_tile)
+        else:
+            if not items_to_show:
+                media_list_view.controls.append(
+                    ft.Container(
+                        content=ft.Text("No se encontraron archivos en esta categoría. Pulsa '🔍 Escanear' para buscar.", size=13, color=ft.Colors.GREY_400),
+                        padding=20,
+                        alignment=ft.Alignment(0, 0)
+                    )
+                )
+            else:
+                for it in items_to_show:
+                    icon_c = ft.Icons.VIDEO_LIBRARY if it['is_video'] else ft.Icons.MUSIC_NOTE
+                    color_c = ft.Colors.BLUE_400 if it['is_video'] else ft.Colors.AMBER_400
+                    tile = ft.ListTile(
+                        leading=ft.Icon(icon_c, color=color_c),
+                        title=ft.Text(it['name'], size=13, overflow=ft.TextOverflow.ELLIPSIS),
+                        subtitle=ft.Text(f"📁 {it['folder']} | {it['size_mb']} MB", size=11, color=ft.Colors.GREY_400),
+                        on_click=lambda e, item=it: play_media_item(item)
+                    )
+                    media_list_view.controls.append(tile)
+
+        media_list_view.update()
+
+    def scan_device_media(e=None):
+        nonlocal scanned_media
+        scanned_media = media_lib.scan_storage()
+        render_media_list()
+
+    def set_media_filter(flt):
+        current_media_filter[0] = flt
+        btn_filter_all.style = ft.ButtonStyle(color=ft.Colors.BLACK if flt=="all" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if flt=="all" else ft.Colors.GREY_800)
+        btn_filter_folders.style = ft.ButtonStyle(color=ft.Colors.BLACK if flt=="folders" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if flt=="folders" else ft.Colors.GREY_800)
+        btn_filter_music.style = ft.ButtonStyle(color=ft.Colors.BLACK if flt=="music" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if flt=="music" else ft.Colors.GREY_800)
+        btn_filter_videos.style = ft.ButtonStyle(color=ft.Colors.BLACK if flt=="videos" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if flt=="videos" else ft.Colors.GREY_800)
+        btn_filter_all.update()
+        btn_filter_folders.update()
+        btn_filter_music.update()
+        btn_filter_videos.update()
+        render_media_list()
+
+    btn_filter_all = ft.FilledButton("🌐 Todo", style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.AMBER_400), on_click=lambda e: set_media_filter("all"))
+    btn_filter_folders = ft.FilledButton("📁 Carpetas", style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: set_media_filter("folders"))
+    btn_filter_music = ft.FilledButton("🎵 Música (MP3)", style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: set_media_filter("music"))
+    btn_filter_videos = ft.FilledButton("🎬 Videos (MP4)", style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: set_media_filter("videos"))
+
+    filter_row = ft.Row([btn_filter_all, btn_filter_folders, btn_filter_music, btn_filter_videos], spacing=6, wrap=True, alignment=ft.MainAxisAlignment.CENTER)
+
+    player_view = ft.Column([
+        ft.Row([
+            ft.Text("🎧 Mi Biblioteca Multimedia", size=20, weight=ft.FontWeight.BOLD),
+            ft.IconButton(icon=ft.Icons.REFRESH, tooltip="🔍 Escanear Celular", on_click=scan_device_media)
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        filter_row,
+        ft.Container(height=5),
+        video_container,
+        ft.Container(height=5),
+        mini_player_container,
+        ft.Container(height=5),
+        media_list_view,
+    ], visible=False, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
     main_view = ft.Column(
         [
             ft.Row(
                 [header_logo, ft.Text("MilaDow", size=32, weight=ft.FontWeight.BOLD)],
                 alignment=ft.MainAxisAlignment.CENTER
             ),
-            ft.Text("Tu descargador multimedia (YouTube, TikTok & Spotify)", size=13, color=ft.Colors.GREY_400),
+            ft.Text("Tu descargador y reproductor multimedia (YouTube, TikTok & Spotify)", size=13, color=ft.Colors.GREY_400),
+            ft.Container(height=5),
+            ft.Row([
+                ft.FilledButton("⬇️ Descargador", style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.AMBER_400), on_click=lambda e: switch_main_tab("downloader")),
+                ft.FilledButton("🎵 Reproductor", style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: switch_main_tab("player")),
+            ], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
             ft.Container(height=5),
             platform_nav_row,
             ft.Container(height=5),
@@ -597,7 +788,20 @@ def main(page: ft.Page):
         visible=False
     )
 
-    page.add(splash_view, main_view)
+    def switch_main_tab(tab):
+        current_tab[0] = tab
+        if tab == "downloader":
+            main_view.visible = True
+            player_view.visible = False
+        else:
+            main_view.visible = True  # Mantiene la estructura base
+            player_view.visible = True
+            # Escanear si está vacío
+            if not scanned_media:
+                scan_device_media()
+        page.update()
+
+    page.add(splash_view, main_view, player_view)
 
     async def run_splash_transition():
         await asyncio.sleep(1.8)

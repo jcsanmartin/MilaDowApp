@@ -79,8 +79,10 @@ class MediaDownloader:
             'ffmpeg_location': self.ffmpeg_path,
             'ignoreerrors': True,
             'progress_hooks': [self._emit_progress],
+            'concurrent_fragment_downloads': 4,
+            'buffersize': 1024 * 64,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 13; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
                 'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
             }
         }
@@ -301,7 +303,7 @@ class MediaDownloader:
         if is_youtube_platform:
             common_opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['android_vr', 'web_embedded']
+                    'player_client': ['mweb', 'android', 'ios']
                 }
             }
 
@@ -323,25 +325,32 @@ class MediaDownloader:
             }
         else:
             if is_tiktok or is_facebook:
-                # TikTok y Facebook: mejor calidad disponible
+                # TikTok y Facebook: mejor calidad disponible con fallback simple
                 ydl_opts = {
                     **common_opts,
                     'outtmpl': outtmpl,
-                    'format': 'bestvideo+bestaudio/best',
+                    'format': 'bestvideo+bestaudio/bestvideo/best',
                     'merge_output_format': 'mp4',
                 }
             else:
                 # YouTube video MP4 format config
-                height = self.quality.replace('p', '')
-                ydl_opts = {
-                    **common_opts,
-                    'outtmpl': outtmpl,
-                    'format': (
+                if self.quality == 'best':
+                    format_str = 'bestvideo[vcodec^=avc1]+bestaudio/bestvideo+bestaudio/best'
+                    format_sort = ['res', 'vcodec:h264', 'filesize', 'br']
+                else:
+                    height = self.quality.replace('p', '')
+                    format_str = (
                         f'bestvideo[height<={height}][vcodec^=avc1]+bestaudio/'
                         f'bestvideo[height<={height}][vcodec^=vp9]+bestaudio/'
                         f'bestvideo[height<={height}]+bestaudio/best'
-                    ),
-                    'format_sort': [f'res:{height}', 'vcodec:h264', 'filesize', 'br'],
+                    )
+                    format_sort = [f'res:{height}', 'vcodec:h264', 'filesize', 'br']
+
+                ydl_opts = {
+                    **common_opts,
+                    'outtmpl': outtmpl,
+                    'format': format_str,
+                    'format_sort': format_sort,
                     'merge_output_format': 'mp4',
                 }
 
