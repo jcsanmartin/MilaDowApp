@@ -292,6 +292,17 @@ class MediaDownloader:
                     clean_parts = [p for p in parts if not p.startswith('list=') and not p.startswith('index=')]
                     url = '&'.join(clean_parts)
 
+        # Resolver redirigido de enlaces cortos de TikTok (vt.tiktok.com / vm.tiktok.com)
+        if is_tiktok and ("vt.tiktok.com" in url.lower() or "vm.tiktok.com" in url.lower()):
+            try:
+                self._emit_log("Resolviendo enlace corto de TikTok...")
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Linux; Android 13; K)'})
+                with urllib.request.urlopen(req) as resp:
+                    url = resp.geturl()
+                self._emit_log(f"Enlace TikTok resuelto: {url}")
+            except Exception as resolve_err:
+                self._emit_log(f"Aviso al resolver enlace corto: {resolve_err}")
+
         if self.cookies_from_browser:
             self._emit_log(f"Usando cookies del navegador: {self.cookies_from_browser}")
         elif self.cookies_file and os.path.exists(self.cookies_file):
@@ -313,10 +324,11 @@ class MediaDownloader:
             outtmpl = os.path.join(self.output_dir, '%(title)s.%(ext)s')
 
         if self.format_type == 'mp3':
+            # Intentar extracción con FFmpeg, si no, fallback directo a mejor audio de fuente
             ydl_opts = {
                 **common_opts,
                 'outtmpl': outtmpl,
-                'format': 'bestaudio/best',
+                'format': 'bestaudio[ext=mp3]/bestaudio[ext=m4a]/bestaudio/best',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',

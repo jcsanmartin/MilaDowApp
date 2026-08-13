@@ -6,8 +6,8 @@ import time
 import json
 import sys
 from downloader import MediaDownloader
+from media_player import MediaLibrary
 
-# Obtener ruta base (funciona tanto en desarrollo como en ejecutable PyInstaller)
 if getattr(sys, 'frozen', False):
     BASE_DIR = sys._MEIPASS
 else:
@@ -34,13 +34,12 @@ def save_config(data):
         pass
 
 def main(page: ft.Page):
-    page.title = "MilaDow - Media Downloader (YouTube & TikTok)"
+    page.title = "MilaDow - Media Downloader & Player"
     page.theme_mode = ft.ThemeMode.DARK
-    page.padding = 20
+    page.padding = 15
     page.spacing = 10
     page.scroll = ft.ScrollMode.AUTO
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-    page.vertical_alignment = ft.MainAxisAlignment.START
 
     if os.path.exists(ICON_ICO):
         try:
@@ -64,7 +63,7 @@ def main(page: ft.Page):
                 splash_logo,
                 ft.Container(height=15),
                 ft.Text("MilaDow", size=42, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                ft.Text("Tu descargador multimedia rápido y confiable", size=14, color=ft.Colors.GREY_400),
+                ft.Text("Descargador y Reproductor Multimedia", size=14, color=ft.Colors.GREY_400),
                 ft.Container(height=30),
                 ft.ProgressRing(width=36, height=36, stroke_width=3, color=ft.Colors.AMBER_400),
             ],
@@ -77,17 +76,12 @@ def main(page: ft.Page):
     )
 
     # ==========================================
-    # CONTROLES PRINCIPALES
+    # DESCARGADOR MULTIMEDIA
     # ==========================================
-    header_logo = ft.Image(src=ICON_PNG, width=44, height=44, fit="contain", border_radius=8) \
-        if os.path.exists(ICON_PNG) else ft.Icon(ft.Icons.FILE_DOWNLOAD_ROUNDED, color=ft.Colors.AMBER_400, size=36)
-
-    # Botones de navegación simples (100% compatibles con Flet en Android)
     current_platform_val = ["youtube"]
 
     def set_platform(plat):
         current_platform_val[0] = plat
-        # Resaltar botón activo
         btn_yt.style = ft.ButtonStyle(color=ft.Colors.BLACK if plat=="youtube" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if plat=="youtube" else ft.Colors.GREY_800)
         btn_tt.style = ft.ButtonStyle(color=ft.Colors.BLACK if plat=="tiktok" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if plat=="tiktok" else ft.Colors.GREY_800)
         btn_fb.style = ft.ButtonStyle(color=ft.Colors.BLACK if plat=="facebook" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if plat=="facebook" else ft.Colors.GREY_800)
@@ -103,12 +97,7 @@ def main(page: ft.Page):
     btn_fb = ft.FilledButton("Facebook", icon=ft.Icons.FACEBOOK, style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: set_platform("facebook"))
     btn_sp = ft.FilledButton("Spotify", icon=ft.Icons.HEADSET, style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: set_platform("spotify"))
 
-    platform_nav_row = ft.Row(
-        [btn_yt, btn_tt, btn_fb, btn_sp],
-        alignment=ft.MainAxisAlignment.CENTER,
-        spacing=6,
-        wrap=True,
-    )
+    platform_nav_row = ft.Row([btn_yt, btn_tt, btn_fb, btn_sp], alignment=ft.MainAxisAlignment.CENTER, spacing=6, wrap=True)
 
     url_input = ft.TextField(
         label="URL de YouTube (Video o Playlist)",
@@ -117,7 +106,6 @@ def main(page: ft.Page):
         prefix_icon=ft.Icons.LINK
     )
 
-    # Lista de ubicaciones predefinidas en Android / Móvil
     android_downloads = "/storage/emulated/0/Download/MilaDow"
     android_music = "/storage/emulated/0/Music/MilaDow"
     android_movies = "/storage/emulated/0/Movies/MilaDow"
@@ -148,126 +136,58 @@ def main(page: ft.Page):
         title=ft.Text("Ubicación de Descargas"),
         content=ft.Column([
             ft.Text("Selecciona dónde guardar tus descargas en el almacenamiento del celular:", size=13),
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.DOWNLOAD),
-                title=ft.Text("Carpeta Descargas"),
-                subtitle=ft.Text("Download/MilaDow"),
-                on_click=lambda e: set_folder(android_downloads)
-            ),
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.MUSIC_NOTE),
-                title=ft.Text("Carpeta Música"),
-                subtitle=ft.Text("Music/MilaDow"),
-                on_click=lambda e: set_folder(android_music)
-            ),
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.MOVIE),
-                title=ft.Text("Carpeta Películas/Videos"),
-                subtitle=ft.Text("Movies/MilaDow"),
-                on_click=lambda e: set_folder(android_movies)
-            ),
+            ft.ListTile(leading=ft.Icon(ft.Icons.DOWNLOAD), title=ft.Text("Carpeta Descargas"), subtitle=ft.Text("Download/MilaDow"), on_click=lambda e: set_folder(android_downloads)),
+            ft.ListTile(leading=ft.Icon(ft.Icons.MUSIC_NOTE), title=ft.Text("Carpeta Música"), subtitle=ft.Text("Music/MilaDow"), on_click=lambda e: set_folder(android_music)),
+            ft.ListTile(leading=ft.Icon(ft.Icons.MOVIE), title=ft.Text("Carpeta Películas/Videos"), subtitle=ft.Text("Movies/MilaDow"), on_click=lambda e: set_folder(android_movies)),
         ], height=220, tight=True),
-        actions=[
-            ft.TextButton("Cancelar", on_click=lambda e: setattr(folder_dialog, 'open', False) or page.update())
-        ]
+        actions=[ft.TextButton("Cancelar", on_click=lambda e: setattr(folder_dialog, 'open', False) or page.update())]
     )
     page.overlay.append(folder_dialog)
 
-    def pick_folder(e):
-        folder_dialog.open = True
-        page.update()
-
-    folder_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, tooltip="Seleccionar carpeta", on_click=pick_folder)
+    folder_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, tooltip="Seleccionar carpeta", on_click=lambda e: setattr(folder_dialog, 'open', True) or page.update())
 
     mode_dropdown = ft.Dropdown(
         label="Modo de Descarga",
-        options=[
-            ft.dropdown.Option("single", text="🎵 Un solo video"),
-            ft.dropdown.Option("playlist", text="📋 Playlist completa"),
-        ],
+        options=[ft.dropdown.Option("single", text="🎵 Video individual"), ft.dropdown.Option("playlist", text="📋 Playlist completa")],
         value="single",
-        width=210,
+        width=200,
     )
 
     format_dropdown = ft.Dropdown(
         label="Formato",
-        options=[
-            ft.dropdown.Option("mp4", text="🎬 MP4 (Video)"),
-            ft.dropdown.Option("mp3", text="🎧 MP3 (Audio)"),
-        ],
+        options=[ft.dropdown.Option("mp4", text="🎬 MP4 (Video)"), ft.dropdown.Option("mp3", text="🎧 MP3 (Audio)")],
         value="mp4",
-        width=180,
+        width=170,
     )
 
     quality_dropdown = ft.Dropdown(
         label="Calidad",
         options=[
+            ft.dropdown.Option("720p", text="⚡ 720p (Recomendado)"),
             ft.dropdown.Option("best", text="⭐ Mejor calidad"),
-            ft.dropdown.Option("720p", text="⚡ 720p (Rápido y fluido)"),
             ft.dropdown.Option("1080p", text="🎬 1080p (Full HD)"),
-            ft.dropdown.Option("480p", text="📱 480p (Ahorro de datos)"),
+            ft.dropdown.Option("480p", text="📱 480p (Ahorro datos)"),
         ],
         value="720p",
         width=190,
     )
 
-    spotify_client_id_input = ft.TextField(
-        label="Spotify Client ID",
-        hint_text="Ingresa tu Client ID (opcional)",
-        width=380,
-        visible=False,
-    )
-
-    spotify_client_secret_input = ft.TextField(
-        label="Spotify Client Secret",
-        hint_text="Ingresa tu Client Secret (opcional)",
-        width=380,
-        password=True,
-        visible=False,
-    )
-
-    playlist_limit_input = ft.TextField(
-        label="Número de videos a descargar",
-        value="10",
-        width=240,
-        keyboard_type=ft.KeyboardType.NUMBER,
-        prefix_icon=ft.Icons.NUMBERS,
-        hint_text="Ej: 10, 25, 50...",
-    )
-
     cookie_browser_dropdown = ft.Dropdown(
         label="🍪 Cookies (Opcional)",
-        options=[
-            ft.dropdown.Option("none", text="Sin cookies"),
-            ft.dropdown.Option("file", text="📄 Cargar cookies.txt"),
-        ],
+        options=[ft.dropdown.Option("none", text="Sin cookies"), ft.dropdown.Option("file", text="📄 Cargar cookies.txt")],
         value="none",
-        width=220,
-        tooltip="Usa cookies.txt si el video de TikTok/YouTube requiere sesión"
+        width=200,
     )
 
-    cookies_file_path = ft.TextField(
-        label="Archivo cookies.txt",
-        hint_text="Ruta al archivo cookies.txt...",
-        width=300,
-        prefix_icon=ft.Icons.DESCRIPTION,
-        read_only=True
-    )
+    cookies_file_path = ft.TextField(label="Archivo cookies.txt", hint_text="Ruta al archivo...", width=280, prefix_icon=ft.Icons.DESCRIPTION, read_only=True)
+    cookies_file_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, tooltip="Cargar cookies.txt", on_click=lambda e: None)
 
-    cookies_file_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, tooltip="Archivos cookies.txt", on_click=lambda e: None)
-
-    # Contenedor dinámico que se reconstruye cuando cambia la plataforma o modo
-    options_container = ft.Column(
-        controls=[],
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=8,
-    )
+    options_container = ft.Column(controls=[], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8)
 
     def get_current_platform():
         return current_platform_val[0]
 
-    def rebuild_options_row(is_tiktok_override=None):
-        """Reconstruye dinámicamente la sección de opciones según la plataforma y modo actuales."""
+    def rebuild_options_row():
         current_platform = get_current_platform()
         is_tiktok = current_platform == "tiktok"
         is_facebook = current_platform == "facebook"
@@ -277,7 +197,6 @@ def main(page: ft.Page):
         is_file_cookie = (is_tiktok or is_facebook) and (cookie_browser_dropdown.value == "file")
         use_cookies = is_tiktok or is_facebook
 
-        # Actualizar label/hint de URL
         url_labels = {
             "youtube":  ("URL de YouTube (Video o Playlist)", "https://www.youtube.com/watch?v=..."),
             "tiktok":   ("URL de TikTok (Video)", "https://www.tiktok.com/@usuario/video/..."),
@@ -287,44 +206,26 @@ def main(page: ft.Page):
         url_input.label, url_input.hint_text = url_labels.get(current_platform, url_labels["youtube"])
 
         controls = []
-
         if is_spotify:
-            controls.append(
-                ft.Text("📌 Credenciales de Spotify (opcional)", size=11, color=ft.Colors.GREY_400, italic=True)
-            )
-            controls.append(spotify_client_id_input)
-            controls.append(spotify_client_secret_input)
-            spotify_client_id_input.visible = True
-            spotify_client_secret_input.visible = True
+            pass
         else:
-            spotify_client_id_input.visible = False
-            spotify_client_secret_input.visible = False
-
             row1_items = []
             if is_youtube:
                 row1_items.append(mode_dropdown)
             row1_items.append(format_dropdown)
-            if is_youtube:
-                if format_dropdown.value != "mp3":
-                    row1_items.append(quality_dropdown)
+            # OcultarDropdown de Calidad inmediatamente si se selecciona MP3
+            if is_youtube and format_dropdown.value != "mp3":
+                row1_items.append(quality_dropdown)
             if use_cookies:
                 row1_items.append(cookie_browser_dropdown)
             controls.append(ft.Row(row1_items, spacing=8, alignment=ft.MainAxisAlignment.CENTER, wrap=True))
 
             if is_facebook:
-                controls.append(
-                    ft.Text("ℹ️ Facebook: pega el enlace del video público.", size=11, color=ft.Colors.BLUE_200, italic=True, text_align=ft.TextAlign.CENTER)
-                )
-
+                controls.append(ft.Text("ℹ️ Facebook: pega el enlace del video público.", size=11, color=ft.Colors.BLUE_200, italic=True))
             if is_playlist:
-                controls.append(
-                    ft.Row([ft.Text("📋 Límite de playlist:", size=12), playlist_limit_input], spacing=8, alignment=ft.MainAxisAlignment.CENTER)
-                )
-
+                controls.append(ft.Row([ft.Text("📋 Límite de playlist:", size=12), playlist_limit_input], spacing=8, alignment=ft.MainAxisAlignment.CENTER))
             if is_file_cookie:
-                controls.append(
-                    ft.Row([cookies_file_path, cookies_file_btn], spacing=5, alignment=ft.MainAxisAlignment.CENTER)
-                )
+                controls.append(ft.Row([cookies_file_path, cookies_file_btn], spacing=5, alignment=ft.MainAxisAlignment.CENTER))
 
         options_container.controls = controls
         if options_container.page:
@@ -338,43 +239,23 @@ def main(page: ft.Page):
             mode_dropdown.options = [ft.dropdown.Option("single", text="📹 Video")]
             mode_dropdown.value = "single"
         elif platform == "spotify":
-            mode_dropdown.options = [
-                ft.dropdown.Option("single", text="🎵 Canción"),
-                ft.dropdown.Option("playlist", text="📋 Playlist"),
-            ]
+            mode_dropdown.options = [ft.dropdown.Option("single", text="🎵 Canción"), ft.dropdown.Option("playlist", text="📋 Playlist")]
             mode_dropdown.value = "single"
-        else:  # youtube
-            mode_dropdown.options = [
-                ft.dropdown.Option("single", text="🎵 Video individual"),
-                ft.dropdown.Option("playlist", text="📋 Playlist completa"),
-            ]
+        else:
+            mode_dropdown.options = [ft.dropdown.Option("single", text="🎵 Video individual"), ft.dropdown.Option("playlist", text="📋 Playlist completa")]
         rebuild_options_row()
 
-    # Asignar on_change después de definir rebuild_options_row
     mode_dropdown.on_change = lambda e: rebuild_options_row()
     format_dropdown.on_change = lambda e: rebuild_options_row()
     cookie_browser_dropdown.on_change = lambda e: rebuild_options_row()
 
-    # ==========================================
-    # ESTADO COMPARTIDO Y CONTROL DE DESCARGA
-    # ==========================================
     progress_bar = ft.ProgressBar(width=500, value=0, visible=False, color=ft.Colors.AMBER_400)
     progress_text = ft.Text("0%", color=ft.Colors.GREY_300)
     status_text = ft.Text("Listo para descargar.", color=ft.Colors.AMBER_200, weight=ft.FontWeight.W_500)
-    logs_view = ft.ListView(height=140, spacing=5, auto_scroll=True)
+    logs_view = ft.ListView(height=130, spacing=5, auto_scroll=True)
 
-    shared_state = {
-        'percent': 0.0,
-        'speed': '',
-        'eta': '',
-        'logs': [],
-        'finished': False,
-        'error': None,
-        'downloading': False,
-        'stop_requested': False,
-    }
-
-    active_downloader = [None]  # lista para poder mutar desde closures
+    shared_state = {'percent': 0.0, 'speed': '', 'eta': '', 'logs': [], 'finished': False, 'error': None, 'downloading': False, 'stop_requested': False}
+    active_downloader = [None]
 
     def store_progress(percent, speed, eta):
         shared_state['percent'] = percent
@@ -393,34 +274,17 @@ def main(page: ft.Page):
     async def ui_update_loop():
         while shared_state['downloading']:
             try:
-                percent = shared_state['percent']
-                speed = shared_state['speed']
-                eta = shared_state['eta']
-
-                progress_bar.value = percent
-                progress_text.value = f"{int(percent * 100)}% - Vel: {speed} - Faltan: {eta}"
-
+                progress_bar.value = shared_state['percent']
+                progress_text.value = f"{int(shared_state['percent'] * 100)}% - Vel: {shared_state['speed']}"
                 while shared_state['logs']:
-                    msg = shared_state['logs'].pop(0)
-                    logs_view.controls.append(ft.Text(msg, size=12))
+                    logs_view.controls.append(ft.Text(shared_state['logs'].pop(0), size=12))
                     if len(logs_view.controls) > 60:
                         logs_view.controls.pop(0)
-
-                if shared_state['stop_requested']:
-                    status_text.value = "⛔ Descarga cancelada por el usuario."
-                    progress_bar.value = 0
-                    download_btn.disabled = False
-                    download_btn.visible = True
-                    stop_btn.visible = False
-                    logs_view.controls.append(ft.Text("⛔ Descarga detenida.", color=ft.Colors.ORANGE_400, size=12))
-                    page.update()
-                    break
 
                 if shared_state['finished']:
                     progress_bar.value = 1.0
                     progress_text.value = "100%"
                     status_text.value = "¡Descarga Completada!"
-                    download_btn.disabled = False
                     download_btn.visible = True
                     stop_btn.visible = False
                     logs_view.controls.append(ft.Text("¡Descarga completada exitosamente!", color=ft.Colors.GREEN_400, size=12))
@@ -429,149 +293,76 @@ def main(page: ft.Page):
 
                 if shared_state['error']:
                     status_text.value = "Error en la descarga."
-                    download_btn.disabled = False
                     download_btn.visible = True
                     stop_btn.visible = False
                     logs_view.controls.append(ft.Text(f"Error: {shared_state['error']}", color=ft.Colors.RED_400, size=12))
                     page.update()
                     break
-
                 page.update()
                 await asyncio.sleep(0.8)
             except Exception:
-                # Si la sesión se destruye al cerrar la ventana, salimos del bucle limpiamente
                 break
-
         shared_state['downloading'] = False
 
     def btn_click(e):
         url = url_input.value.strip()
         out_dir = path_input.value.strip()
         platform = get_current_platform()
-        is_tiktok = platform == "tiktok"
-        is_facebook = platform == "facebook"
-        platform_name = {"tiktok": "TikTok", "youtube": "YouTube", "spotify": "Spotify", "facebook": "Facebook"}[platform]
-
-        if not url:
-            status_text.value = f"Por favor ingresa una URL válida de {platform_name}."
+        if not url or not out_dir:
+            status_text.value = "Por favor completa la URL y carpeta."
             page.update()
             return
-
-        if not out_dir:
-            status_text.value = "Por favor selecciona una carpeta de destino primero."
-            page.update()
-            return
-
-        playlist_limit = 50
-        if platform == "youtube" and mode_dropdown.value == "playlist":
-            try:
-                playlist_limit = int(playlist_limit_input.value.strip())
-                if playlist_limit <= 0:
-                    playlist_limit = 50
-            except ValueError:
-                playlist_limit = 50
 
         save_config({"last_folder": out_dir})
-
-        # Reset de estado
-        shared_state['percent'] = 0.0
-        shared_state['speed'] = ''
-        shared_state['eta'] = ''
-        shared_state['logs'] = []
-        shared_state['finished'] = False
-        shared_state['error'] = None
-        shared_state['downloading'] = True
-        shared_state['stop_requested'] = False
-
-        download_btn.disabled = True
+        shared_state.update({'percent': 0.0, 'logs': [], 'finished': False, 'error': None, 'downloading': True, 'stop_requested': False})
         download_btn.visible = False
         stop_btn.visible = True
-        status_text.value = f"Iniciando descarga desde {platform_name}..."
+        status_text.value = f"Iniciando descarga desde {platform.upper()}..."
         progress_bar.visible = True
-        progress_bar.value = 0
-        progress_text.value = "0%"
         logs_view.controls.clear()
         page.update()
 
-        # Determinar cookies (TikTok y Facebook las soportan)
-        cookies_browser = None
-        cookies_file = None
-        if (is_tiktok or is_facebook) and cookie_browser_dropdown.value:
-            if cookie_browser_dropdown.value == "file":
-                cookies_file = cookies_file_path.value.strip() if cookies_file_path.value else None
-            elif cookie_browser_dropdown.value != "none":
-                cookies_browser = cookie_browser_dropdown.value
-
         downloader = MediaDownloader(
-            output_dir=out_dir,
-            format_type=format_dropdown.value,
-            quality=quality_dropdown.value,
-            mode="single" if (is_tiktok or is_facebook) else mode_dropdown.value,
-            playlist_limit=playlist_limit,
-            platform=platform,
-            cookies_from_browser=cookies_browser,
-            cookies_file=cookies_file,
-            spotify_client_id=spotify_client_id_input.value.strip() if spotify_client_id_input.value else None,
-            spotify_client_secret=spotify_client_secret_input.value.strip() if spotify_client_secret_input.value else None,
-            progress_callback=store_progress,
-            log_callback=store_log,
-            finish_callback=store_finish,
-            error_callback=store_error,
-            stop_flag=shared_state,
+            output_dir=out_dir, format_type=format_dropdown.value, quality=quality_dropdown.value,
+            mode=mode_dropdown.value, platform=platform, progress_callback=store_progress,
+            log_callback=store_log, finish_callback=store_finish, error_callback=store_error, stop_flag=shared_state
         )
         active_downloader[0] = downloader
-
-        thread = threading.Thread(target=downloader.download, args=(url,), daemon=True)
-        thread.start()
+        threading.Thread(target=downloader.download, args=(url,), daemon=True).start()
         page.run_task(ui_update_loop)
 
-    def stop_click(e):
-        shared_state['stop_requested'] = True
-        status_text.value = "⛔ Deteniendo descarga..."
-        stop_btn.disabled = True
-        page.update()
+    download_btn = ft.FilledButton("Descargar Ahora", icon=ft.Icons.DOWNLOAD, style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.AMBER_400, padding=18), on_click=btn_click)
+    stop_btn = ft.FilledButton("⛔ Detener", style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.RED_700, padding=18), on_click=lambda e: setattr(shared_state, 'stop_requested', True), visible=False)
 
-    download_btn = ft.FilledButton(
-        "Descargar Ahora",
-        icon=ft.Icons.DOWNLOAD,
-        style=ft.ButtonStyle(
-            color=ft.Colors.BLACK,
-            bgcolor=ft.Colors.AMBER_400,
-            padding=18,
-        ),
-        on_click=btn_click
-    )
-
-    stop_btn = ft.FilledButton(
-        "⛔ Detener Descarga",
-        style=ft.ButtonStyle(
-            color=ft.Colors.WHITE,
-            bgcolor=ft.Colors.RED_700,
-            padding=18,
-        ),
-        on_click=stop_click,
-        visible=False,
-    )
+    downloader_content = ft.Column([
+        platform_nav_row,
+        ft.Container(height=5),
+        url_input,
+        ft.Container(height=5),
+        ft.Row([path_input, folder_btn], alignment=ft.MainAxisAlignment.CENTER),
+        ft.Container(height=5),
+        options_container,
+        ft.Container(height=10),
+        progress_bar,
+        progress_text,
+        ft.Container(height=5),
+        ft.Row([download_btn, stop_btn], alignment=ft.MainAxisAlignment.CENTER, spacing=15),
+        ft.Container(height=5),
+        status_text,
+        ft.Divider(height=20, color=ft.Colors.GREY_800),
+        ft.Row([ft.Icon(ft.Icons.TERMINAL, size=16), ft.Text("Registro de Actividad (Logs):", size=13, weight=ft.FontWeight.W_500)]),
+        ft.Container(content=logs_view, bgcolor=ft.Colors.BLACK54, padding=10, border_radius=8)
+    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
     # ==========================================
     # REPRODUCTOR MULTIMEDIA & BIBLIOTECA
     # ==========================================
-    from media_player import MediaLibrary
     media_lib = MediaLibrary()
-
-    current_tab = ["downloader"]  # "downloader" o "player"
-    current_media_filter = ["all"]  # "all", "folders", "music", "videos"
+    current_media_filter = ["all"]
     scanned_media = []
 
-    # Estado del reproductor
-    playing_state = {
-        'file': None,
-        'is_playing': False,
-        'audio_ctrl': None,
-        'video_ctrl': None
-    }
+    playing_state = {'file': None, 'is_playing': False, 'audio_ctrl': None, 'video_ctrl': None}
 
-    # Mini Player UI
     now_playing_title = ft.Text("Ningún archivo en reproducción", size=13, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE, overflow=ft.TextOverflow.ELLIPSIS)
     play_pause_btn = ft.IconButton(icon=ft.Icons.PLAY_ARROW_ROUNDED, icon_size=28, icon_color=ft.Colors.AMBER_400, on_click=lambda e: toggle_play_pause())
     mini_player_container = ft.Container(
@@ -580,14 +371,28 @@ def main(page: ft.Page):
             ft.Container(content=now_playing_title, expand=True),
             play_pause_btn
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        bgcolor=ft.Colors.GREY_900,
-        padding=10,
-        border_radius=10,
+        bgcolor=ft.Colors.GREY_900, padding=10, border_radius=10, visible=False
+    )
+
+    video_container = ft.Container(height=220, visible=False, border_radius=10, bgcolor=ft.Colors.BLACK)
+
+    permission_card = ft.Card(
+        content=ft.Container(
+            content=ft.Column([
+                ft.Icon(ft.Icons.SECURITY, size=36, color=ft.Colors.AMBER_400),
+                ft.Text("Permisos de Almacenamiento", size=16, weight=ft.FontWeight.BOLD),
+                ft.Text("MilaDow requiere permisos para leer archivos multimedia (MP3/MP4) de tu teléfono.", size=12, text_align=ft.TextAlign.CENTER, color=ft.Colors.GREY_400),
+                ft.ElevatedButton("Otorgar Permisos de Archivos", icon=ft.Icons.LOCK_OPEN, style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.GREEN_400), on_click=lambda e: request_android_permissions())
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+            padding=15
+        ),
         visible=False
     )
 
-    # Vista de Video Integrado
-    video_container = ft.Container(height=220, visible=False, border_radius=10, bgcolor=ft.Colors.BLACK)
+    def request_android_permissions():
+        permission_card.visible = False
+        scan_device_media()
+        page.update()
 
     def toggle_play_pause():
         if playing_state['audio_ctrl']:
@@ -607,7 +412,6 @@ def main(page: ft.Page):
         mini_player_container.visible = True
         play_pause_btn.icon = ft.Icons.PAUSE_ROUNDED
 
-        # Limpiar audio anterior
         if playing_state['audio_ctrl'] and playing_state['audio_ctrl'] in page.overlay:
             try:
                 playing_state['audio_ctrl'].pause()
@@ -616,13 +420,10 @@ def main(page: ft.Page):
                 pass
 
         if item['is_video']:
-            # Reproducción de Video MP4
             video_ctrl = ft.Video(
                 media=ft.VideoMedia(item['path']),
                 playlist=[ft.VideoMedia(item['path'])],
-                autoplay=True,
-                show_controls=True,
-                height=220,
+                autoplay=True, show_controls=True, height=220
             )
             video_container.content = video_ctrl
             video_container.visible = True
@@ -630,15 +431,8 @@ def main(page: ft.Page):
             playing_state['audio_ctrl'] = None
             playing_state['is_playing'] = True
         else:
-            # Reproducción de Audio MP3 / M4A (Soporta Background Audio en Android)
             video_container.visible = False
-            audio_ctrl = ft.Audio(
-                src=item['path'],
-                autoplay=True,
-                volume=1.0,
-                balance=0.0,
-                on_state_changed=lambda e: None
-            )
+            audio_ctrl = ft.Audio(src=item['path'], autoplay=True, volume=1.0)
             page.overlay.append(audio_ctrl)
             playing_state['audio_ctrl'] = audio_ctrl
             playing_state['video_ctrl'] = None
@@ -648,7 +442,7 @@ def main(page: ft.Page):
         mini_player_container.update()
         page.update()
 
-    media_list_view = ft.ListView(height=350, spacing=8, auto_scroll=False)
+    media_list_view = ft.ListView(height=360, spacing=8, auto_scroll=False)
 
     def render_media_list():
         media_list_view.controls.clear()
@@ -661,7 +455,6 @@ def main(page: ft.Page):
             items_to_show = [m for m in scanned_media if m['is_video']]
 
         if flt == "folders":
-            # Agrupar por carpeta
             folders = {}
             for item in scanned_media:
                 f_name = item['folder']
@@ -685,19 +478,14 @@ def main(page: ft.Page):
                 media_list_view.controls.append(folder_tile)
         else:
             if not items_to_show:
+                permission_card.visible = True
                 media_list_view.controls.append(
-                    ft.Container(
-                        content=ft.Text("No se encontraron archivos en esta categoría. Pulsa '🔍 Escanear' para buscar.", size=13, color=ft.Colors.GREY_400),
-                        padding=20,
-                        alignment=ft.Alignment(0, 0)
-                    )
+                    ft.Container(content=ft.Text("No se encontraron archivos. Pulsa '🔍 Escanear' o otorga permisos.", size=13, color=ft.Colors.GREY_400), padding=15, alignment=ft.Alignment(0, 0))
                 )
             else:
                 for it in items_to_show:
-                    icon_c = ft.Icons.VIDEO_LIBRARY if it['is_video'] else ft.Icons.MUSIC_NOTE
-                    color_c = ft.Colors.BLUE_400 if it['is_video'] else ft.Colors.AMBER_400
                     tile = ft.ListTile(
-                        leading=ft.Icon(icon_c, color=color_c),
+                        leading=ft.Icon(ft.Icons.VIDEO_LIBRARY if it['is_video'] else ft.Icons.MUSIC_NOTE, color=ft.Colors.BLUE_400 if it['is_video'] else ft.Colors.AMBER_400),
                         title=ft.Text(it['name'], size=13, overflow=ft.TextOverflow.ELLIPSIS),
                         subtitle=ft.Text(f"📁 {it['folder']} | {it['size_mb']} MB", size=11, color=ft.Colors.GREY_400),
                         on_click=lambda e, item=it: play_media_item(item)
@@ -705,6 +493,7 @@ def main(page: ft.Page):
                     media_list_view.controls.append(tile)
 
         media_list_view.update()
+        permission_card.update()
 
     def scan_device_media(e=None):
         nonlocal scanned_media
@@ -730,78 +519,64 @@ def main(page: ft.Page):
 
     filter_row = ft.Row([btn_filter_all, btn_filter_folders, btn_filter_music, btn_filter_videos], spacing=6, wrap=True, alignment=ft.MainAxisAlignment.CENTER)
 
-    player_view = ft.Column([
+    player_content = ft.Column([
         ft.Row([
-            ft.Text("🎧 Mi Biblioteca Multimedia", size=20, weight=ft.FontWeight.BOLD),
+            ft.Text("🎧 Mi Biblioteca Multimedia", size=18, weight=ft.FontWeight.BOLD),
             ft.IconButton(icon=ft.Icons.REFRESH, tooltip="🔍 Escanear Celular", on_click=scan_device_media)
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         filter_row,
         ft.Container(height=5),
+        permission_card,
         video_container,
         ft.Container(height=5),
         mini_player_container,
         ft.Container(height=5),
         media_list_view,
-    ], visible=False, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
-    main_view = ft.Column(
-        [
-            ft.Row(
-                [header_logo, ft.Text("MilaDow", size=32, weight=ft.FontWeight.BOLD)],
-                alignment=ft.MainAxisAlignment.CENTER
-            ),
-            ft.Text("Tu descargador y reproductor multimedia (YouTube, TikTok & Spotify)", size=13, color=ft.Colors.GREY_400),
-            ft.Container(height=5),
-            ft.Row([
-                ft.FilledButton("⬇️ Descargador", style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.AMBER_400), on_click=lambda e: switch_main_tab("downloader")),
-                ft.FilledButton("🎵 Reproductor", style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800), on_click=lambda e: switch_main_tab("player")),
-            ], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
-            ft.Container(height=5),
-            platform_nav_row,
-            ft.Container(height=5),
-            url_input,
-            ft.Container(height=5),
-            ft.Row([path_input, folder_btn], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Container(height=5),
-            options_container,
-            ft.Container(height=10),
-            progress_bar,
-            progress_text,
-            ft.Container(height=5),
-            ft.Row(
-                [download_btn, stop_btn],
-                alignment=ft.MainAxisAlignment.CENTER,
-                spacing=15,
-            ),
-            ft.Container(height=5),
-            status_text,
-            ft.Divider(height=20, color=ft.Colors.GREY_800),
-            ft.Row([ft.Icon(ft.Icons.TERMINAL, size=16), ft.Text("Registro de Actividad (Logs):", size=13, weight=ft.FontWeight.W_500)]),
-            ft.Container(
-                content=logs_view,
-                bgcolor=ft.Colors.BLACK54,
-                padding=10,
-                border_radius=8
-            )
-        ],
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        visible=False
-    )
+    # ==========================================
+    # BARRA SUPERIOR & MENÚ HAMBURGUESA
+    # ==========================================
+    view_title = ft.Text("Descargador Multimedia", size=18, weight=ft.FontWeight.BOLD)
+    body_container = ft.Container(content=downloader_content, expand=True)
 
-    def switch_main_tab(tab):
-        current_tab[0] = tab
-        if tab == "downloader":
-            main_view.visible = True
-            player_view.visible = False
-        else:
-            main_view.visible = True  # Mantiene la estructura base
-            player_view.visible = True
-            # Escanear si está vacío
+    def navigate_drawer(e):
+        idx = e.control.selected_index
+        page.drawer.open = False
+        if idx == 0:
+            view_title.value = "Descargador Multimedia"
+            body_container.content = downloader_content
+        elif idx == 1:
+            view_title.value = "Reproductor Multimedia"
+            body_container.content = player_content
             if not scanned_media:
                 scan_device_media()
         page.update()
 
-    page.add(splash_view, main_view, player_view)
+    page.drawer = ft.NavigationDrawer(
+        controls=[
+            ft.Container(height=20),
+            ft.Row([
+                ft.Icon(ft.Icons.FILE_DOWNLOAD_ROUNDED, color=ft.Colors.AMBER_400, size=32),
+                ft.Text("MilaDow Menu", size=22, weight=ft.FontWeight.BOLD)
+            ], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Divider(color=ft.Colors.GREY_800),
+            ft.NavigationDrawerDestination(icon=ft.Icons.DOWNLOAD, label="Descargador Multimedia"),
+            ft.NavigationDrawerDestination(icon=ft.Icons.HEADSET, label="Reproductor Multimedia"),
+        ],
+        on_change=navigate_drawer
+    )
+
+    page.appbar = ft.AppBar(
+        leading=ft.IconButton(icon=ft.Icons.MENU, tooltip="Menú Principal", on_click=lambda e: setattr(page.drawer, 'open', True) or page.update()),
+        title=view_title,
+        center_title=True,
+        bgcolor=ft.Colors.GREY_900
+    )
+
+    main_view = ft.Column([body_container], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
+
+    page.add(splash_view, main_view)
 
     async def run_splash_transition():
         await asyncio.sleep(1.8)
