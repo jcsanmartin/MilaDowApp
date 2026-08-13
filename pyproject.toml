@@ -1,19 +1,24 @@
 [tool.flet]
-app.name = "MilaDow"
-app.description = "Descargador y Reproductor Multimedia"
-app.bundle_id = "com.jcsanmartin.miladow"
-app.version = "1.0.0"
+org = "com.jcsanmartin"
+project = "miladow"
+
+[tool.flet.app]
+name = "MilaDow"
+description = "Descargador y Reproductor Multimedia"
+bundle_id = "com.jcsanmartin.miladow"
+version = "1.0.0"
+build_number = 1
 
 [tool.flet.android]
-# Permisos requeridos para Android
 permissions = [
     "android.permission.INTERNET",
     "android.permission.READ_EXTERNAL_STORAGE",
     "android.permission.WRITE_EXTERNAL_STORAGE",
     "android.permission.READ_MEDIA_AUDIO",
     "android.permission.READ_MEDIA_VIDEO",
-    "android.permission.FOREGROUND_SERVICE",
-    "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-    "android.permission.WAKE_LOCK",
+    "android.permission.READ_MEDIA_IMAGES",
     "android.permission.MANAGE_EXTERNAL_STORAGE",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.WAKE_LOCK",
 ]
+features = []

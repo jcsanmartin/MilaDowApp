@@ -391,17 +391,35 @@ def main(page: ft.Page):
     )
 
     def request_android_permissions():
+        """Solicitar permisos nativos de Android vía canales del sistema."""
         permission_card.visible = False
         page.update()
-        # Solicitar permisos nativos de Android para leer archivos multimedia
-        try:
-            page.request_permission("android.permission.READ_MEDIA_AUDIO")
-            page.request_permission("android.permission.READ_MEDIA_VIDEO")
-            page.request_permission("android.permission.READ_EXTERNAL_STORAGE")
-        except Exception:
-            pass  # En versiones antiguas de Flet o PC, ignorar
+        _request_storage_permissions()
         scan_device_media()
         page.update()
+
+    def _request_storage_permissions():
+        """Invocar el dialogo de permisos de Android via el gestor de actividades del sistema."""
+        import subprocess
+        is_android = os.path.exists("/storage/emulated/0")
+        if not is_android:
+            return  # No hacer nada en PC/Windows
+        perms = [
+            "android.permission.READ_MEDIA_AUDIO",
+            "android.permission.READ_MEDIA_VIDEO",
+            "android.permission.READ_MEDIA_IMAGES",
+            "android.permission.READ_EXTERNAL_STORAGE",
+            "android.permission.WRITE_EXTERNAL_STORAGE",
+        ]
+        try:
+            pkg = "com.jcsanmartin.miladow"  # Bundle ID declarado en pyproject.toml
+            for perm in perms:
+                subprocess.run(
+                    ["pm", "grant", pkg, perm],
+                    capture_output=True, timeout=3
+                )
+        except Exception:
+            pass
 
     def toggle_play_pause():
         if playing_state['audio_ctrl']:
@@ -564,13 +582,6 @@ def main(page: ft.Page):
             view_title.value = "Reproductor Multimedia"
             body_container.content = player_content
             page.update()
-            # Solicitar permisos de almacenamiento al entrar al reproductor
-            try:
-                page.request_permission("android.permission.READ_MEDIA_AUDIO")
-                page.request_permission("android.permission.READ_MEDIA_VIDEO")
-                page.request_permission("android.permission.READ_EXTERNAL_STORAGE")
-            except Exception:
-                pass
             scan_device_media()
 
     page.drawer = ft.NavigationDrawer(
@@ -604,6 +615,8 @@ def main(page: ft.Page):
         main_view.visible = True
         rebuild_options_row()
         page.update()
+        # Solicitar permisos de almacenamiento al iniciar la app en Android
+        threading.Thread(target=_request_storage_permissions, daemon=True).start()
 
     page.run_task(run_splash_transition)
 
