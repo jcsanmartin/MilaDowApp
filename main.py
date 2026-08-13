@@ -483,6 +483,7 @@ def main(page: ft.Page):
                     ft.Container(content=ft.Text("No se encontraron archivos. Pulsa '🔍 Escanear' o otorga permisos.", size=13, color=ft.Colors.GREY_400), padding=15, alignment=ft.Alignment(0, 0))
                 )
             else:
+                permission_card.visible = False
                 for it in items_to_show:
                     tile = ft.ListTile(
                         leading=ft.Icon(ft.Icons.VIDEO_LIBRARY if it['is_video'] else ft.Icons.MUSIC_NOTE, color=ft.Colors.BLUE_400 if it['is_video'] else ft.Colors.AMBER_400),
@@ -492,8 +493,10 @@ def main(page: ft.Page):
                     )
                     media_list_view.controls.append(tile)
 
-        media_list_view.update()
-        permission_card.update()
+        if media_list_view.page:
+            media_list_view.update()
+        if permission_card.page:
+            permission_card.update()
 
     def scan_device_media(e=None):
         nonlocal scanned_media
@@ -506,10 +509,11 @@ def main(page: ft.Page):
         btn_filter_folders.style = ft.ButtonStyle(color=ft.Colors.BLACK if flt=="folders" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if flt=="folders" else ft.Colors.GREY_800)
         btn_filter_music.style = ft.ButtonStyle(color=ft.Colors.BLACK if flt=="music" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if flt=="music" else ft.Colors.GREY_800)
         btn_filter_videos.style = ft.ButtonStyle(color=ft.Colors.BLACK if flt=="videos" else ft.Colors.WHITE, bgcolor=ft.Colors.AMBER_400 if flt=="videos" else ft.Colors.GREY_800)
-        btn_filter_all.update()
-        btn_filter_folders.update()
-        btn_filter_music.update()
-        btn_filter_videos.update()
+        if btn_filter_all.page:
+            btn_filter_all.update()
+            btn_filter_folders.update()
+            btn_filter_music.update()
+            btn_filter_videos.update()
         render_media_list()
 
     btn_filter_all = ft.FilledButton("🌐 Todo", style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.AMBER_400), on_click=lambda e: set_media_filter("all"))
@@ -549,8 +553,9 @@ def main(page: ft.Page):
         elif idx == 1:
             view_title.value = "Reproductor Multimedia"
             body_container.content = player_content
-            if not scanned_media:
-                scan_device_media()
+            page.update()
+            scan_device_media()
+            return
         page.update()
 
     page.drawer = ft.NavigationDrawer(
