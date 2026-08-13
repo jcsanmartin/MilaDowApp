@@ -375,7 +375,7 @@ def main(page: ft.Page):
     album_art = ft.Container(
         width=200, height=200,
         border_radius=20,
-        bgcolor=ft.Colors.GREY_850,
+        bgcolor=ft.Colors.GREY_800,
         content=ft.Icon(ft.Icons.MUSIC_NOTE_ROUNDED, size=90, color=ft.Colors.AMBER_400),
         shadow=ft.BoxShadow(blur_radius=30, color=ft.Colors.with_opacity(0.5, ft.Colors.AMBER_700)),
         alignment=ft.Alignment(0, 0),
