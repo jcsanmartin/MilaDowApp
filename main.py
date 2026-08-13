@@ -5,6 +5,7 @@ import os
 import time
 import json
 import sys
+import flet_permission_handler as fph
 from downloader import MediaDownloader
 from media_player import MediaLibrary
 
@@ -34,6 +35,10 @@ def save_config(data):
         pass
 
 def main(page: ft.Page):
+    # Registrar el manejador oficial de permisos nativos de Android
+    ph = fph.PermissionHandler()
+    page.overlay.append(ph)
+
     page.title = "MilaDow - Media Downloader & Player"
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 15
@@ -106,9 +111,9 @@ def main(page: ft.Page):
         prefix_icon=ft.Icons.LINK
     )
 
-    android_downloads = "/storage/emulated/0/Download/MilaDow"
-    android_music = "/storage/emulated/0/Music/MilaDow"
-    android_movies = "/storage/emulated/0/Movies/MilaDow"
+    android_downloads = "/storage/emulated/0/Download"
+    android_music = "/storage/emulated/0/Music"
+    android_movies = "/storage/emulated/0/Movies"
 
     default_dir = last_folder
     if not default_dir or "Users" in default_dir:
@@ -136,12 +141,13 @@ def main(page: ft.Page):
         title=ft.Text("Ubicación de Descargas"),
         content=ft.Column([
             ft.Text("Selecciona dónde guardar tus descargas en el almacenamiento del celular:", size=13),
-            ft.ListTile(leading=ft.Icon(ft.Icons.DOWNLOAD), title=ft.Text("Carpeta Descargas"), subtitle=ft.Text("Download/MilaDow"), on_click=lambda e: set_folder(android_downloads)),
-            ft.ListTile(leading=ft.Icon(ft.Icons.MUSIC_NOTE), title=ft.Text("Carpeta Música"), subtitle=ft.Text("Music/MilaDow"), on_click=lambda e: set_folder(android_music)),
-            ft.ListTile(leading=ft.Icon(ft.Icons.MOVIE), title=ft.Text("Carpeta Películas/Videos"), subtitle=ft.Text("Movies/MilaDow"), on_click=lambda e: set_folder(android_movies)),
+            ft.ListTile(leading=ft.Icon(ft.Icons.DOWNLOAD), title=ft.Text("Carpeta Descargas"), subtitle=ft.Text("Download"), on_click=lambda e: set_folder(android_downloads)),
+            ft.ListTile(leading=ft.Icon(ft.Icons.MUSIC_NOTE), title=ft.Text("Carpeta Música"), subtitle=ft.Text("Music"), on_click=lambda e: set_folder(android_music)),
+            ft.ListTile(leading=ft.Icon(ft.Icons.MOVIE), title=ft.Text("Carpeta Películas/Videos"), subtitle=ft.Text("Movies"), on_click=lambda e: set_folder(android_movies)),
         ], height=220, tight=True),
         actions=[ft.TextButton("Cancelar", on_click=lambda e: setattr(folder_dialog, 'open', False) or page.update())]
     )
+
     page.overlay.append(folder_dialog)
 
     folder_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, tooltip="Seleccionar carpeta", on_click=lambda e: setattr(folder_dialog, 'open', True) or page.update())
@@ -611,7 +617,8 @@ def main(page: ft.Page):
                 ft.Icon(ft.Icons.SECURITY, size=36, color=ft.Colors.AMBER_400),
                 ft.Text("Permisos de Almacenamiento", size=16, weight=ft.FontWeight.BOLD),
                 ft.Text("MilaDow requiere permisos para leer archivos multimedia de tu teléfono.", size=12, text_align=ft.TextAlign.CENTER, color=ft.Colors.GREY_400),
-                ft.ElevatedButton("Otorgar Permisos", icon=ft.Icons.LOCK_OPEN, style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.GREEN_400), on_click=lambda e: request_android_permissions())
+                ft.ElevatedButton("Otorgar Permisos", icon=ft.Icons.LOCK_OPEN, style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.GREEN_400), on_click=request_android_permissions)
+
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
             padding=15
         ),
@@ -683,33 +690,28 @@ def main(page: ft.Page):
         if permission_card.page:
             permission_card.update()
 
-    def request_android_permissions():
-        """Solicitar permisos nativos de Android vía canales del sistema."""
+    async def request_android_permissions(e=None):
+        """Solicitar permisos nativos de Android vía el plugin oficial flet-permission-handler."""
         permission_card.visible = False
         page.update()
-        _request_storage_permissions()
+        await _request_storage_permissions()
         scan_device_media()
         page.update()
 
-    def _request_storage_permissions():
-        """Invocar el dialogo de permisos de Android via el gestor de actividades del sistema."""
-        import subprocess
-        is_android = os.path.exists("/storage/emulated/0")
-        if not is_android:
-            return
-        perms = [
-            "android.permission.READ_MEDIA_AUDIO",
-            "android.permission.READ_MEDIA_VIDEO",
-            "android.permission.READ_MEDIA_IMAGES",
-            "android.permission.READ_EXTERNAL_STORAGE",
-            "android.permission.WRITE_EXTERNAL_STORAGE",
-        ]
+    async def _request_storage_permissions():
+        """Inicia las solicitudes de todos los permisos de almacenamiento y multimedia necesarios."""
         try:
-            pkg = "com.jcsanmartin.miladow"
-            for perm in perms:
-                subprocess.run(["pm", "grant", pkg, perm], capture_output=True, timeout=3)
-        except Exception:
-            pass
+            # Solicitar STORAGE para Android 12 y menor
+            await ph.request(fph.Permission.STORAGE)
+            # Solicitar AUDIO, VIDEOS y PHOTOS para Android 13+
+            await ph.request(fph.Permission.AUDIO)
+            await ph.request(fph.Permission.VIDEOS)
+            await ph.request(fph.Permission.PHOTOS)
+            # Intentar solicitar acceso a todo el almacenamiento si es necesario
+            await ph.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
+        except Exception as ex:
+            print(f"Error al solicitar permisos: {ex}")
+
 
     def scan_device_media(e=None):
         nonlocal scanned_media
@@ -813,8 +815,9 @@ def main(page: ft.Page):
         main_view.visible = True
         rebuild_options_row()
         page.update()
-        # Solicitar permisos de almacenamiento al iniciar la app en Android
-        threading.Thread(target=_request_storage_permissions, daemon=True).start()
+        # Solicitar permisos de almacenamiento de manera asíncrona al iniciar la aplicación
+        await _request_storage_permissions()
+        scan_device_media()
 
     page.run_task(run_splash_transition)
 
