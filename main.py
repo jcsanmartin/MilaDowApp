@@ -391,6 +391,14 @@ def main(page: ft.Page):
 
     def request_android_permissions():
         permission_card.visible = False
+        page.update()
+        # Solicitar permisos nativos de Android para leer archivos multimedia
+        try:
+            page.request_permission("android.permission.READ_MEDIA_AUDIO")
+            page.request_permission("android.permission.READ_MEDIA_VIDEO")
+            page.request_permission("android.permission.READ_EXTERNAL_STORAGE")
+        except Exception:
+            pass  # En versiones antiguas de Flet o PC, ignorar
         scan_device_media()
         page.update()
 
@@ -550,13 +558,19 @@ def main(page: ft.Page):
         if idx == 0:
             view_title.value = "Descargador Multimedia"
             body_container.content = downloader_content
+            page.update()
         elif idx == 1:
             view_title.value = "Reproductor Multimedia"
             body_container.content = player_content
             page.update()
+            # Solicitar permisos de almacenamiento al entrar al reproductor
+            try:
+                page.request_permission("android.permission.READ_MEDIA_AUDIO")
+                page.request_permission("android.permission.READ_MEDIA_VIDEO")
+                page.request_permission("android.permission.READ_EXTERNAL_STORAGE")
+            except Exception:
+                pass
             scan_device_media()
-            return
-        page.update()
 
     page.drawer = ft.NavigationDrawer(
         controls=[
