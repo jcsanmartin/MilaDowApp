@@ -787,8 +787,17 @@ def main(page: ft.Page):
         on_change=navigate_drawer
     )
 
+    def open_drawer(e):
+        page.drawer.open = True
+        page.update()
+
     page.appbar = ft.AppBar(
-        leading=ft.IconButton(icon=ft.Icons.MENU, tooltip="Menú Principal", on_click=lambda e: setattr(page.drawer, 'open', True) or page.update()),
+        leading=ft.IconButton(
+            icon=ft.Icons.MENU,
+            tooltip="Menú Principal",
+            on_click=open_drawer,
+            icon_color=ft.Colors.WHITE,
+        ),
         title=view_title,
         center_title=True,
         bgcolor=ft.Colors.GREY_900
