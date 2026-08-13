@@ -213,12 +213,13 @@ def main(page: ft.Page):
             if is_youtube:
                 row1_items.append(mode_dropdown)
             row1_items.append(format_dropdown)
-            # OcultarDropdown de Calidad inmediatamente si se selecciona MP3
-            if is_youtube and format_dropdown.value != "mp3":
+            # Calidad SOLO para YouTube + MP4. Nunca para MP3 (audio no tiene resolución de video)
+            if is_youtube and format_dropdown.value == "mp4":
                 row1_items.append(quality_dropdown)
             if use_cookies:
                 row1_items.append(cookie_browser_dropdown)
             controls.append(ft.Row(row1_items, spacing=8, alignment=ft.MainAxisAlignment.CENTER, wrap=True))
+
 
             if is_facebook:
                 controls.append(ft.Text("ℹ️ Facebook: pega el enlace del video público.", size=11, color=ft.Colors.BLUE_200, italic=True))
