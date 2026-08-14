@@ -1,13 +1,3 @@
-[project]
-name = "miladow"
-version = "1.0.0"
-dependencies = [
-    "flet",
-    "yt-dlp",
-    "flet-permission-handler",
-    "spotdl"
-]
-
 [tool.flet]
 org = "com.jcsanmartin"
 project = "miladow"

@@ -33,22 +33,6 @@ def save_config(data):
         pass
 
 def main(page: ft.Page):
-    try:
-        ph = fph.PermissionHandler()
-        page.overlay.append(ph)
-        
-        async def request_perms():
-            try:
-                await asyncio.sleep(1)
-                await ph.request(fph.Permission.STORAGE)
-                await ph.request(fph.Permission.AUDIO)
-                await ph.request(fph.Permission.VIDEOS)
-            except Exception as e:
-                print(f"Error pidiendo permisos: {e}")
-                
-        page.run_task(request_perms)
-    except Exception as e:
-        print(f"PermissionHandler falló: {e}")
 
     page.title = "MilaDow - Media Downloader & Player"
     page.theme_mode = ft.ThemeMode.DARK
@@ -149,15 +133,20 @@ def main(page: ft.Page):
         main_view.visible = True
         page.update()
 
-        # Solicitar permisos nativos en Android de manera asíncrona al iniciar
+        # Solicitar permisos DESPUÉS de que la UI esté visible
+        # (el PermissionHandler necesita que la página esté renderizada)
         try:
+            ph = fph.PermissionHandler()
+            page.overlay.append(ph)
+            page.update()  # importante: registrar el control antes de usarlo
+            await asyncio.sleep(0.5)
             await ph.request(fph.Permission.STORAGE)
             await ph.request(fph.Permission.AUDIO)
             await ph.request(fph.Permission.VIDEOS)
             await ph.request(fph.Permission.PHOTOS)
             await ph.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
-        except Exception:
-            pass
+        except Exception as ex:
+            print(f"Permisos no disponibles: {ex}")
 
     page.run_task(run_splash_transition)
 
