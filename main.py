@@ -3,7 +3,7 @@ import asyncio
 import os
 import json
 import sys
-
+import flet_permission_handler as fph
 from downloader_view import get_downloader_view
 from player_view import get_player_view
 
@@ -33,8 +33,22 @@ def save_config(data):
         pass
 
 def main(page: ft.Page):
-    # El plugin de permisos flet_permission_handler fue removido temporalmente
-    # debido a problemas de compatibilidad (Unknown control) en el empaquetado.
+    try:
+        ph = fph.PermissionHandler()
+        page.overlay.append(ph)
+        
+        async def request_perms():
+            try:
+                await asyncio.sleep(1)
+                await ph.request(fph.Permission.STORAGE)
+                await ph.request(fph.Permission.AUDIO)
+                await ph.request(fph.Permission.VIDEOS)
+            except Exception as e:
+                print(f"Error pidiendo permisos: {e}")
+                
+        page.run_task(request_perms)
+    except Exception as e:
+        print(f"PermissionHandler falló: {e}")
 
     page.title = "MilaDow - Media Downloader & Player"
     page.theme_mode = ft.ThemeMode.DARK
