@@ -3,7 +3,7 @@ import asyncio
 import os
 import json
 import sys
-import flet_permission_handler as fph
+
 from downloader_view import get_downloader_view
 from player_view import get_player_view
 
@@ -33,9 +33,8 @@ def save_config(data):
         pass
 
 def main(page: ft.Page):
-    # Registrar el manejador oficial de permisos nativos de Android
-    ph = fph.PermissionHandler()
-    page.overlay.append(ph)
+    # El plugin de permisos flet_permission_handler fue removido temporalmente
+    # debido a problemas de compatibilidad (Unknown control) en el empaquetado.
 
     page.title = "MilaDow - Media Downloader & Player"
     page.theme_mode = ft.ThemeMode.DARK
@@ -90,7 +89,7 @@ def main(page: ft.Page):
             page.update()
         elif idx == 1:
             view_title.value = "Reproductor Multimedia"
-            body_container.content = get_player_view(page, ph)
+            body_container.content = get_player_view(page)
             page.update()
 
     page.drawer = ft.NavigationDrawer(

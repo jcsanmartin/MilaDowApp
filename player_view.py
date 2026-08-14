@@ -1,59 +1,60 @@
 import flet as ft
-import flet_permission_handler as fph
 import os
-import asyncio
+import math
 from media_player import MediaLibrary
 
-def get_player_view(page: ft.Page, ph: fph.PermissionHandler):
-    # ==========================================
-    # REPRODUCTOR MULTIMEDIA & BIBLIOTECA
-    # ==========================================
+def get_player_view(page: ft.Page):
     media_lib = MediaLibrary()
-    current_media_filter = ["all"]
     scanned_media = []
-    current_track_index = [0]
-
+    
+    # ── ESTADO DEL REPRODUCTOR ──
     playing_state = {
         'file': None, 'is_playing': False,
         'audio_ctrl': None, 'video_ctrl': None,
-        'duration': 0, 'position': 0
+        'duration': 0, 'position': 0,
+        'index': -1,
+        'playlist': []
     }
 
-    # ── Álbum Art ──
-    album_art = ft.Container(
-        width=200, height=200,
-        border_radius=20,
-        bgcolor=ft.Colors.GREY_800,
-        content=ft.Icon(ft.Icons.MUSIC_NOTE_ROUNDED, size=90, color=ft.Colors.AMBER_400),
-        shadow=ft.BoxShadow(blur_radius=30, color=ft.Colors.with_opacity(0.5, ft.Colors.AMBER_700)),
-        alignment=ft.Alignment(0, 0),
-    )
+    # Contenedor principal que alternará entre ListView y NowPlayingView
+    main_container = ft.Container(expand=True)
 
-    # ── Título y Artista ──
-    now_playing_title = ft.Text(
-        "Sin reproducción", size=17, weight=ft.FontWeight.BOLD,
-        color=ft.Colors.WHITE, text_align=ft.TextAlign.CENTER,
-        overflow=ft.TextOverflow.ELLIPSIS, max_lines=1
-    )
-    now_playing_subtitle = ft.Text(
-        "Selecciona una canción abajo", size=13,
-        color=ft.Colors.GREY_400, text_align=ft.TextAlign.CENTER
-    )
-
-    # ── Barra de Progreso ──
-    progress_slider = ft.Slider(
-        min=0, max=100, value=0,
-        active_color=ft.Colors.AMBER_400,
-        inactive_color=ft.Colors.GREY_700,
-        thumb_color=ft.Colors.AMBER_300,
-        expand=True,
-    )
-    time_start = ft.Text("0:00", size=11, color=ft.Colors.GREY_400)
-    time_end   = ft.Text("0:00", size=11, color=ft.Colors.GREY_400)
-
+    # ==========================================
+    # COMPONENTES COMPARTIDOS
+    # ==========================================
+    
     def fmt_time(secs):
+        if not secs or math.isnan(secs):
+            return "0:00"
         s = int(secs)
         return f"{s//60}:{s%60:02d}"
+
+    # Controles de Audio/Video invisibles inyectados a la página
+    def on_audio_position(e):
+        playing_state['position'] = int(e.data) / 1000.0
+        update_progress_ui()
+
+    def on_audio_duration(e):
+        playing_state['duration'] = int(e.data) / 1000.0
+        update_progress_ui()
+
+    def on_audio_complete(e):
+        if e.data == "completed":
+            next_track()
+
+    # ==========================================
+    # VISTA NOW PLAYING (PANTALLA COMPLETA)
+    # ==========================================
+    
+    np_title = ft.Text("Artista desconocido", size=18, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, expand=True)
+    np_subtitle = ft.Text("Desconocido", size=14, color=ft.Colors.GREY_400)
+    
+    np_progress_slider = ft.Slider(
+        min=0, max=100, value=0,
+        active_color=ft.Colors.WHITE, inactive_color=ft.Colors.GREY_800, thumb_color=ft.Colors.WHITE, expand=True
+    )
+    np_time_start = ft.Text("0:00", size=12, color=ft.Colors.GREY_400)
+    np_time_end = ft.Text("0:00", size=12, color=ft.Colors.GREY_400)
 
     def on_seek(e):
         if playing_state['audio_ctrl'] and playing_state['duration'] > 0:
@@ -63,328 +64,349 @@ def get_player_view(page: ft.Page, ph: fph.PermissionHandler):
             except Exception:
                 pass
 
-    progress_slider.on_change_end = on_seek
+    np_progress_slider.on_change_end = on_seek
 
-    # ── Botones de control ──
-    def prev_track(e):
-        items = _visible_items()
-        if not items:
-            return
-        idx = current_track_index[0]
-        current_track_index[0] = (idx - 1) % len(items)
-        play_media_item(items[current_track_index[0]])
+    np_play_btn = ft.IconButton(icon=ft.Icons.PLAY_ARROW_ROUNDED, icon_size=42, icon_color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800, on_click=lambda e: toggle_play_pause())
+    
+    # Arte del álbum estilo cassette moderno
+    np_album_art = ft.Container(
+        width=300, height=300, border_radius=20, bgcolor=ft.Colors.GREY_800,
+        content=ft.Icon(ft.Icons.ALBUM, size=150, color=ft.Colors.GREY_600),
+        shadow=ft.BoxShadow(blur_radius=20, color=ft.Colors.with_opacity(0.3, ft.Colors.BLACK)),
+        alignment=ft.Alignment(0, 0),
+        margin=ft.Margin(0, 20, 0, 20)
+    )
 
-    def next_track(e):
-        items = _visible_items()
-        if not items:
-            return
-        idx = current_track_index[0]
-        current_track_index[0] = (idx + 1) % len(items)
-        play_media_item(items[current_track_index[0]])
+    now_playing_view = ft.Container(
+        expand=True,
+        bgcolor="#121212",
+        padding=20,
+        content=ft.Column([
+            # Top bar
+            ft.Row([
+                ft.IconButton(ft.Icons.KEYBOARD_ARROW_DOWN_ROUNDED, icon_size=32, icon_color=ft.Colors.WHITE, on_click=lambda e: show_list_view()),
+                ft.Row([
+                    ft.IconButton(ft.Icons.CAST, icon_color=ft.Colors.WHITE),
+                    ft.IconButton(ft.Icons.TUNE, icon_color=ft.Colors.WHITE),
+                    ft.IconButton(ft.Icons.MORE_VERT, icon_color=ft.Colors.WHITE),
+                ])
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            
+            # Album Art
+            ft.Row([np_album_art], alignment=ft.MainAxisAlignment.CENTER),
+            
+            # Info
+            ft.Row([
+                ft.Column([np_title, np_subtitle], spacing=2, expand=True),
+                ft.IconButton(ft.Icons.STAR_BORDER_ROUNDED, icon_size=28, icon_color=ft.Colors.WHITE)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            
+            ft.Container(height=20),
+            
+            # Progress
+            np_progress_slider,
+            ft.Row([np_time_start, np_time_end], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            
+            ft.Container(height=10),
+            
+            # Controls
+            ft.Row([
+                ft.IconButton(ft.Icons.SHUFFLE, icon_color=ft.Colors.WHITE, icon_size=24),
+                ft.IconButton(ft.Icons.SKIP_PREVIOUS_ROUNDED, icon_color=ft.Colors.WHITE, icon_size=36, on_click=lambda e: prev_track()),
+                np_play_btn,
+                ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_color=ft.Colors.WHITE, icon_size=36, on_click=lambda e: next_track()),
+                ft.IconButton(ft.Icons.REPEAT, icon_color=ft.Colors.WHITE, icon_size=24),
+            ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
+        ])
+    )
 
-    def toggle_play_pause(e=None):
+    # ==========================================
+    # VISTA DE LISTA (PRINCIPAL)
+    # ==========================================
+
+    # ── Mini Player Inferior ──
+    mini_title = ft.Text("Sin reproducción", size=13, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+    mini_subtitle = ft.Text("", size=11, color=ft.Colors.WHITE70)
+    mini_play_btn = ft.IconButton(ft.Icons.PLAY_ARROW_ROUNDED, icon_color=ft.Colors.WHITE, on_click=lambda e: toggle_play_pause())
+    mini_progress = ft.ProgressBar(value=0, color=ft.Colors.WHITE, bgcolor=ft.Colors.TRANSPARENT, height=2)
+    
+    mini_player = ft.Container(
+        visible=False,
+        bgcolor="#6A90A4", # Color suave
+        border_radius=10,
+        padding=ft.Padding(10, 5, 10, 5),
+        margin=ft.Margin(10, 0, 10, 10),
+        on_click=lambda e: show_now_playing_view(),
+        content=ft.Column([
+            ft.Row([
+                ft.Container(
+                    width=40, height=40, border_radius=5, bgcolor=ft.Colors.GREY_800,
+                    content=ft.Icon(ft.Icons.MUSIC_NOTE, size=20, color=ft.Colors.WHITE),
+                    image_fit=ft.ImageFit.COVER
+                ),
+                ft.Column([mini_title, mini_subtitle], spacing=0, expand=True),
+                mini_play_btn,
+                ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_color=ft.Colors.WHITE, on_click=lambda e: next_track()),
+            ], spacing=10),
+            mini_progress
+        ], spacing=0)
+    )
+
+    # ── Botones de navegación (Bottom Nav) ──
+    bottom_nav = ft.Container(
+        bgcolor="#000000", padding=10,
+        content=ft.Row([
+            ft.Column([ft.Icon(ft.Icons.HEADSET, color=ft.Colors.WHITE), ft.Text("Mi música", size=10, color=ft.Colors.WHITE)], spacing=2, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True),
+            ft.Column([ft.Icon(ft.Icons.PLAY_CIRCLE_OUTLINE, color=ft.Colors.GREY_600), ft.Text("Ver", size=10, color=ft.Colors.GREY_600)], spacing=2, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True),
+        ])
+    )
+
+    list_container = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True, spacing=15)
+    
+    list_view_container = ft.Container(
+        expand=True,
+        bgcolor="#000000",
+        content=ft.Column([
+            ft.Container(
+                padding=ft.Padding(10, 10, 10, 0),
+                content=list_container,
+                expand=True
+            ),
+            mini_player,
+            bottom_nav
+        ], spacing=0)
+    )
+
+    # ==========================================
+    # FUNCIONES DE REPRODUCCIÓN
+    # ==========================================
+    
+    def show_list_view():
+        main_container.content = list_view_container
+        if main_container.page: main_container.update()
+
+    def show_now_playing_view():
+        main_container.content = now_playing_view
+        if main_container.page: main_container.update()
+
+    def play_media_item(item):
+        if not item: return
+        
+        # Detener anterior
+        if playing_state['audio_ctrl']:
+            try:
+                playing_state['audio_ctrl'].pause()
+                if playing_state['audio_ctrl'] in page.overlay:
+                    page.overlay.remove(playing_state['audio_ctrl'])
+            except Exception: pass
+            
+        playing_state['file'] = item
+        playing_state['is_playing'] = True
+        playing_state['duration'] = 0
+        playing_state['position'] = 0
+        
+        # Encontrar índice en playlist actual
+        try:
+            playing_state['index'] = playing_state['playlist'].index(item)
+        except ValueError:
+            playing_state['playlist'] = scanned_media
+            try: playing_state['index'] = playing_state['playlist'].index(item)
+            except ValueError: playing_state['index'] = 0
+
+        # UI Updates
+        name_no_ext = os.path.splitext(item['name'])[0]
+        np_title.value = name_no_ext
+        mini_title.value = name_no_ext
+        
+        if item['is_video']:
+            np_subtitle.value = "Video"
+            mini_subtitle.value = "Video"
+            np_album_art.content = ft.Icon(ft.Icons.MOVIE, size=100, color=ft.Colors.GREY_600)
+            # Todo: Para simplificar, videos se reproducen como audio en background por ahora o requerirían control de video
+        else:
+            np_subtitle.value = "Artista desconocido"
+            mini_subtitle.value = "Artista desconocido"
+            np_album_art.content = ft.Icon(ft.Icons.ALBUM, size=150, color=ft.Colors.GREY_600)
+
+        # Crear nuevo control de audio
+        audio_ctrl = ft.Audio(
+            src=item['path'], autoplay=True,
+            on_duration_changed=on_audio_duration,
+            on_position_changed=on_audio_position,
+            on_state_changed=on_audio_complete,
+        )
+        page.overlay.append(audio_ctrl)
+        playing_state['audio_ctrl'] = audio_ctrl
+        
+        update_play_pause_buttons()
+        mini_player.visible = True
+        
+        if main_container.page:
+            mini_player.update()
+            now_playing_view.update()
+            
+        # Refresh lista para highlight (opcional)
+        # render_media_list()
+
+    def toggle_play_pause():
         if playing_state['audio_ctrl']:
             if playing_state['is_playing']:
                 playing_state['audio_ctrl'].pause()
                 playing_state['is_playing'] = False
-                play_pause_btn.icon = ft.Icons.PLAY_CIRCLE_ROUNDED
             else:
                 playing_state['audio_ctrl'].resume()
                 playing_state['is_playing'] = True
-                play_pause_btn.icon = ft.Icons.PAUSE_CIRCLE_ROUNDED
-            play_pause_btn.update()
+            update_play_pause_buttons()
 
-    btn_prev = ft.IconButton(
-        icon=ft.Icons.SKIP_PREVIOUS_ROUNDED,
-        icon_size=38, icon_color=ft.Colors.WHITE,
-        on_click=prev_track
-    )
-    play_pause_btn = ft.IconButton(
-        icon=ft.Icons.PLAY_CIRCLE_ROUNDED,
-        icon_size=64, icon_color=ft.Colors.AMBER_400,
-        on_click=toggle_play_pause
-    )
-    btn_next = ft.IconButton(
-        icon=ft.Icons.SKIP_NEXT_ROUNDED,
-        icon_size=38, icon_color=ft.Colors.WHITE,
-        on_click=next_track
-    )
+    def update_play_pause_buttons():
+        icon = ft.Icons.PAUSE_ROUNDED if playing_state['is_playing'] else ft.Icons.PLAY_ARROW_ROUNDED
+        mini_play_btn.icon = icon
+        np_play_btn.icon = ft.Icons.PAUSE_CIRCLE_FILLED_ROUNDED if playing_state['is_playing'] else ft.Icons.PLAY_CIRCLE_FILLED_ROUNDED
+        if mini_play_btn.page: mini_play_btn.update()
+        if np_play_btn.page: np_play_btn.update()
 
-    # ── Control de Volumen ──
-    volume_slider = ft.Slider(
-        min=0, max=1, value=1,
-        active_color=ft.Colors.AMBER_400,
-        inactive_color=ft.Colors.GREY_700,
-        thumb_color=ft.Colors.AMBER_300,
-        width=140,
-    )
-    def on_volume_change(e):
-        if playing_state['audio_ctrl']:
-            try:
-                playing_state['audio_ctrl'].volume = e.control.value
-                playing_state['audio_ctrl'].update()
-            except Exception:
-                pass
-    volume_slider.on_change = on_volume_change
+    def update_progress_ui():
+        if playing_state['duration'] > 0:
+            prog = playing_state['position'] / playing_state['duration']
+            mini_progress.value = prog
+            np_progress_slider.value = prog * 100
+            np_time_start.value = fmt_time(playing_state['position'])
+            np_time_end.value = fmt_time(playing_state['duration'])
+            
+            # Solo actualizar si están visibles para evitar carga
+            if main_container.page:
+                if main_container.content == list_view_container:
+                    mini_progress.update()
+                else:
+                    np_progress_slider.update()
+                    np_time_start.update()
+                    np_time_end.update()
 
-    # ── Now Playing Card ──
-    now_playing_card = ft.Container(
-        content=ft.Column([
-            ft.Container(content=album_art, alignment=ft.Alignment(0, 0)),
-            ft.Container(height=14),
-            now_playing_title,
-            now_playing_subtitle,
-            ft.Container(height=10),
-            ft.Row([time_start, progress_slider, time_end],
-                   alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            ft.Container(height=4),
-            ft.Row([btn_prev, play_pause_btn, btn_next],
-                   alignment=ft.MainAxisAlignment.CENTER, spacing=4),
-            ft.Container(height=4),
-            ft.Row([
-                ft.Icon(ft.Icons.VOLUME_DOWN, color=ft.Colors.GREY_400, size=18),
-                volume_slider,
-                ft.Icon(ft.Icons.VOLUME_UP, color=ft.Colors.GREY_400, size=18),
-            ], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-        ],
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=0,
-        tight=True,
-        ),
-        bgcolor=ft.Colors.GREY_900,
-        border_radius=20,
-        padding=ft.Padding(18, 18, 18, 14),
-        shadow=ft.BoxShadow(blur_radius=16, color=ft.Colors.with_opacity(0.3, ft.Colors.BLACK)),
-    )
+    def prev_track():
+        if not playing_state['playlist']: return
+        idx = playing_state['index'] - 1
+        if idx < 0: idx = len(playing_state['playlist']) - 1
+        play_media_item(playing_state['playlist'][idx])
 
-    video_container = ft.Container(height=220, visible=False, border_radius=10, bgcolor=ft.Colors.BLACK)
+    def next_track():
+        if not playing_state['playlist']: return
+        idx = playing_state['index'] + 1
+        if idx >= len(playing_state['playlist']): idx = 0
+        play_media_item(playing_state['playlist'][idx])
 
-    # ── Audio callbacks ──
-    def _on_audio_duration(e):
-        dur = (e.data or 0)
-        try:
-            playing_state['duration'] = int(dur) / 1000
-            time_end.value = fmt_time(playing_state['duration'])
-            time_end.update()
-        except Exception:
-            pass
-
-    def _on_audio_position(e):
-        try:
-            pos_ms = int(e.data or 0)
-            pos_s = pos_ms / 1000
-            playing_state['position'] = pos_s
-            dur = playing_state['duration']
-            if dur > 0:
-                progress_slider.value = (pos_s / dur) * 100
-                time_start.value = fmt_time(pos_s)
-                progress_slider.update()
-                time_start.update()
-        except Exception:
-            pass
-
-    def _on_audio_complete(e):
-        next_track(None)
-
-    def play_media_item(item):
-        playing_state['file'] = item
-        name = item['name']
-        now_playing_title.value = name
-        now_playing_subtitle.value = f"📁 {item['folder']}  •  {item['size_mb']} MB"
-        play_pause_btn.icon = ft.Icons.PAUSE_CIRCLE_ROUNDED
-        playing_state['is_playing'] = True
-
-        # Detener audio anterior
-        if playing_state['audio_ctrl'] and playing_state['audio_ctrl'] in page.overlay:
-            try:
-                playing_state['audio_ctrl'].pause()
-                page.overlay.remove(playing_state['audio_ctrl'])
-            except Exception:
-                pass
-
-        if item['is_video']:
-            video_ctrl = ft.Video(
-                media=ft.VideoMedia(item['path']),
-                playlist=[ft.VideoMedia(item['path'])],
-                autoplay=True, show_controls=True, height=220
-            )
-            video_container.content = video_ctrl
-            video_container.visible = True
-            album_art.content = ft.Icon(ft.Icons.MOVIE, size=90, color=ft.Colors.BLUE_400)
-            playing_state['video_ctrl'] = video_ctrl
-            playing_state['audio_ctrl'] = None
-        else:
-            video_container.visible = False
-            album_art.content = ft.Icon(ft.Icons.MUSIC_NOTE_ROUNDED, size=90, color=ft.Colors.AMBER_400)
-            audio_ctrl = ft.Audio(
-                src=item['path'], autoplay=True, volume=volume_slider.value,
-                on_duration_changed=_on_audio_duration,
-                on_position_changed=_on_audio_position,
-                on_state_changed=_on_audio_complete,
-            )
-            page.overlay.append(audio_ctrl)
-            playing_state['audio_ctrl'] = audio_ctrl
-            playing_state['video_ctrl'] = None
-            playing_state['duration'] = 0
-            playing_state['position'] = 0
-            progress_slider.value = 0
-            time_start.value = "0:00"
-            time_end.value = "0:00"
-
-        now_playing_title.update()
-        now_playing_subtitle.update()
-        play_pause_btn.update()
-        album_art.update()
-        video_container.update()
-        progress_slider.update()
-        page.update()
-
-    # Highlight de canción activa en la lista
-    def _visible_items():
-        flt = current_media_filter[0]
-        if flt == "music":
-            return [m for m in scanned_media if not m['is_video']]
-        elif flt == "videos":
-            return [m for m in scanned_media if m['is_video']]
-        elif flt == "folders":
-            return scanned_media
-        return scanned_media
-
-    # ── Lista de canciones ──
-    media_list_view = ft.ListView(height=280, spacing=2, auto_scroll=False)
-
-    permission_card = ft.Card(
-        content=ft.Container(
-            content=ft.Column([
-                ft.Icon(ft.Icons.SECURITY, size=36, color=ft.Colors.AMBER_400),
-                ft.Text("Permisos de Almacenamiento", size=16, weight=ft.FontWeight.BOLD),
-                ft.Text("MilaDow requiere permisos para leer archivos multimedia de tu teléfono.", size=12, text_align=ft.TextAlign.CENTER, color=ft.Colors.GREY_400),
-                ft.ElevatedButton("Otorgar Permisos", icon=ft.Icons.LOCK_OPEN, style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.GREEN_400), on_click=lambda e: page.run_task(request_android_permissions))
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
-            padding=15
-        ),
-        visible=False
-    )
+    # ==========================================
+    # CONSTRUCCIÓN DE LA LISTA
+    # ==========================================
 
     def render_media_list():
-        media_list_view.controls.clear()
-        flt = current_media_filter[0]
-        items_to_show = _visible_items()
+        list_container.controls.clear()
+        
+        # 1. Search Bar & Top Buttons
+        search_bar = ft.TextField(
+            hint_text="Buscar canciones, listas de reprodu...",
+            prefix_icon=ft.Icons.SEARCH,
+            bgcolor=ft.Colors.GREY_900,
+            border=ft.InputBorder.NONE,
+            border_radius=20,
+            height=45,
+            content_padding=ft.Padding(10, 0, 10, 0)
+        )
+        list_container.controls.append(ft.Row([
+            ft.IconButton(ft.Icons.TUNE, icon_color=ft.Colors.WHITE),
+            ft.Container(search_bar, expand=True)
+        ]))
 
-        if flt == "folders":
-            folders = {}
-            for item in scanned_media:
-                f_name = item['folder']
-                if f_name not in folders:
-                    folders[f_name] = []
-                folders[f_name].append(item)
-            for f_name, f_items in folders.items():
-                folder_tile = ft.ExpansionTile(
-                    title=ft.Text(f"📁 {f_name} ({len(f_items)})", weight=ft.FontWeight.BOLD),
-                    subtitle=ft.Text(f_items[0]['folder_path'], size=11, color=ft.Colors.GREY_400),
-                    controls=[
-                        ft.ListTile(
-                            leading=ft.Icon(ft.Icons.VIDEO_LIBRARY if it['is_video'] else ft.Icons.MUSIC_NOTE, color=ft.Colors.AMBER_400 if not it['is_video'] else ft.Colors.BLUE_400),
-                            title=ft.Text(it['name'], size=13, overflow=ft.TextOverflow.ELLIPSIS),
-                            subtitle=ft.Text(f"{it['size_mb']} MB", size=11),
-                            on_click=lambda e, item=it: play_media_item(item)
-                        ) for it in f_items
-                    ]
+        # 2. Colored Cards
+        list_container.controls.append(
+            ft.Row([
+                ft.Container(content=ft.Column([ft.Icon(ft.Icons.FAVORITE, color=ft.Colors.WHITE), ft.Text("Favoritos", weight=ft.FontWeight.BOLD)], spacing=5),
+                             bgcolor="#883355", border_radius=10, padding=10, expand=True, height=80),
+                ft.Container(content=ft.Column([ft.Icon(ft.Icons.QUEUE_MUSIC, color=ft.Colors.WHITE), ft.Text("Listas de\nreproducción", weight=ft.FontWeight.BOLD, size=11)], spacing=5),
+                             bgcolor="#336677", border_radius=10, padding=10, expand=True, height=80),
+                ft.Container(content=ft.Column([ft.Icon(ft.Icons.ACCESS_TIME, color=ft.Colors.WHITE), ft.Text("Recientes", weight=ft.FontWeight.BOLD)], spacing=5),
+                             bgcolor="#443377", border_radius=10, padding=10, expand=True, height=80),
+            ], spacing=10)
+        )
+
+        # 3. Tabs
+        list_container.controls.append(
+            ft.Row([
+                ft.Container(content=ft.Text("Artistas", color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.WHITE, padding=ft.Padding(15, 5, 15, 5), border_radius=20),
+                ft.Text("Álbumes", color=ft.Colors.GREY_400),
+                ft.Text("Carpetas", color=ft.Colors.GREY_400),
+            ], spacing=20, alignment=ft.MainAxisAlignment.START)
+        )
+
+        # 4. Shuffle play
+        list_container.controls.append(
+            ft.Row([
+                ft.Icon(ft.Icons.PLAY_CIRCLE_FILLED, color=ft.Colors.WHITE, size=32),
+                ft.Text("Reproducción aleatoria", weight=ft.FontWeight.BOLD, size=14)
+            ])
+        )
+        
+        # Si no hay archivos, sugerir escaneo/permisos
+        if not scanned_media:
+            list_container.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.FOLDER_OFF, size=50, color=ft.Colors.GREY_800),
+                        ft.Text("No se encontró música", weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_400),
+                        ft.Text("Verifica los permisos de almacenamiento de la app en Configuración > Aplicaciones.", text_align=ft.TextAlign.CENTER, color=ft.Colors.GREY_600, size=12),
+                        ft.ElevatedButton("Escanear de nuevo", on_click=lambda e: scan_device_media())
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    alignment=ft.Alignment(0, 0), padding=40
                 )
-                media_list_view.controls.append(folder_tile)
-        else:
-            if not items_to_show:
-                permission_card.visible = True
-                media_list_view.controls.append(
+            )
+            if list_container.page: list_container.update()
+            return
+
+        # 5. Lista Alfabética
+        current_letter = ""
+        for item in scanned_media:
+            name = item['name']
+            letter = name[0].upper() if name else "?"
+            if not letter.isalpha(): letter = "#"
+            
+            if letter != current_letter:
+                current_letter = letter
+                list_container.controls.append(
+                    ft.Text(current_letter, weight=ft.FontWeight.BOLD, size=14, color=ft.Colors.GREY_600)
+                )
+            
+            tile = ft.Container(
+                content=ft.Row([
                     ft.Container(
-                        content=ft.Text("No se encontraron archivos. Pulsa '🔍 Escanear' o otorga permisos.", size=13, color=ft.Colors.GREY_400),
-                        padding=15, alignment=ft.Alignment(0, 0)
-                    )
-                )
-            else:
-                permission_card.visible = False
-                for idx, it in enumerate(items_to_show):
-                    is_active = playing_state['file'] == it
-                    tile = ft.Container(
-                        content=ft.Row([
-                            ft.Icon(
-                                ft.Icons.VIDEO_LIBRARY if it['is_video'] else ft.Icons.MUSIC_NOTE,
-                                color=ft.Colors.BLUE_400 if it['is_video'] else ft.Colors.AMBER_400,
-                                size=22
-                            ),
-                            ft.Column([
-                                ft.Text(it['name'], size=13, overflow=ft.TextOverflow.ELLIPSIS, weight=ft.FontWeight.W_600 if is_active else ft.FontWeight.NORMAL, color=ft.Colors.AMBER_300 if is_active else ft.Colors.WHITE),
-                                ft.Text(f"📁 {it['folder']}  •  {it['size_mb']} MB", size=11, color=ft.Colors.GREY_400),
-                            ], spacing=2, expand=True),
-                            ft.Icon(ft.Icons.EQUALIZER_ROUNDED, color=ft.Colors.AMBER_400, size=18) if is_active else ft.Container(width=18),
-                        ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                        bgcolor=ft.Colors.with_opacity(0.15, ft.Colors.AMBER_400) if is_active else ft.Colors.GREY_900,
-                        border_radius=10,
-                        padding=ft.Padding(12, 10, 12, 10),
-                        on_click=lambda e, item=it, i=idx: [current_track_index.__setitem__(0, i), play_media_item(item)],
-                        ink=True,
-                    )
-                    media_list_view.controls.append(tile)
+                        width=45, height=45, border_radius=25, bgcolor=ft.Colors.GREY_800,
+                        content=ft.Icon(ft.Icons.MUSIC_NOTE, color=ft.Colors.WHITE, size=24),
+                        alignment=ft.Alignment(0, 0)
+                    ),
+                    ft.Column([
+                        ft.Text(os.path.splitext(name)[0], size=14, weight=ft.FontWeight.W_500, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                        ft.Text(f"{item['size_mb']} MB • {item['folder']}", size=12, color=ft.Colors.GREY_500)
+                    ], spacing=2, expand=True),
+                    ft.IconButton(ft.Icons.MORE_VERT, icon_color=ft.Colors.GREY_600)
+                ]),
+                ink=True,
+                padding=ft.Padding(0, 5, 0, 5),
+                on_click=lambda e, it=item: play_media_item(it)
+            )
+            list_container.controls.append(tile)
 
-        if media_list_view.page:
-            media_list_view.update()
-        if permission_card.page:
-            permission_card.update()
+        # Se evita llamar update() a menos que ya estemos en la página
+        if list_container.page:
+            list_container.update()
 
-    async def request_android_permissions(e=None):
-        permission_card.visible = False
-        page.update()
-        await _request_storage_permissions()
-        scan_device_media()
-        page.update()
-
-    async def _request_storage_permissions():
-        try:
-            await ph.request(fph.Permission.STORAGE)
-            await ph.request(fph.Permission.AUDIO)
-            await ph.request(fph.Permission.VIDEOS)
-            await ph.request(fph.Permission.PHOTOS)
-            await ph.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
-        except Exception as ex:
-            print(f"Error al solicitar permisos: {ex}")
-
-    def scan_device_media(e=None):
+    def scan_device_media():
         nonlocal scanned_media
         scanned_media = media_lib.scan_storage()
+        # Ordenar alfabéticamente
+        scanned_media.sort(key=lambda x: x['name'].lower())
+        playing_state['playlist'] = scanned_media
         render_media_list()
 
-    def set_media_filter(flt):
-        current_media_filter[0] = flt
-        active = (ft.Colors.BLACK, ft.Colors.AMBER_400)
-        inactive = (ft.Colors.WHITE, ft.Colors.GREY_800)
-        for btn, key in [(btn_filter_all,"all"),(btn_filter_folders,"folders"),(btn_filter_music,"music"),(btn_filter_videos,"videos")]:
-            c, bg = active if flt == key else inactive
-            btn.style = ft.ButtonStyle(color=c, bgcolor=bg)
-            if btn.page:
-                btn.update()
-        render_media_list()
-
-    btn_filter_all     = ft.FilledButton("🌐 Todo",         style=ft.ButtonStyle(color=ft.Colors.BLACK, bgcolor=ft.Colors.AMBER_400), on_click=lambda e: set_media_filter("all"))
-    btn_filter_folders = ft.FilledButton("📁 Carpetas",     style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800),  on_click=lambda e: set_media_filter("folders"))
-    btn_filter_music   = ft.FilledButton("🎵 Música (MP3)", style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800),  on_click=lambda e: set_media_filter("music"))
-    btn_filter_videos  = ft.FilledButton("🎬 Videos (MP4)", style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800),  on_click=lambda e: set_media_filter("videos"))
-
-    filter_row = ft.Row([btn_filter_all, btn_filter_folders, btn_filter_music, btn_filter_videos], spacing=6, wrap=True, alignment=ft.MainAxisAlignment.CENTER)
-
-    player_content = ft.Column([
-        now_playing_card,
-        ft.Container(height=8),
-        video_container,
-        ft.Row([
-            ft.Text("🎧 Mi Biblioteca", size=15, weight=ft.FontWeight.BOLD),
-            ft.IconButton(icon=ft.Icons.REFRESH_ROUNDED, tooltip="Escanear dispositivo", icon_color=ft.Colors.GREY_400, on_click=scan_device_media)
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        filter_row,
-        permission_card,
-        media_list_view,
-    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=6)
-
-    # Escaneo inicial al cargar el reproductor
+    # Inicializar estado visual
+    main_container.content = list_view_container
     scan_device_media()
 
-    return player_content
+    return main_container
