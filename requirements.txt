@@ -2,4 +2,3 @@ flet>=0.86.4
 yt-dlp
 flet-permission-handler
 spotdl
-imageio-ffmpeg
