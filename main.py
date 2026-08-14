@@ -16,6 +16,7 @@ CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 ICON_PNG = os.path.join(BASE_DIR, "app_icon.png")
 ICON_ICO = os.path.join(BASE_DIR, "app_icon.ico")
 
+
 def load_config():
     if os.path.exists(CONFIG_FILE):
         try:
@@ -25,6 +26,7 @@ def load_config():
             pass
     return {}
 
+
 def save_config(data):
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -32,8 +34,8 @@ def save_config(data):
     except Exception:
         pass
 
-def main(page: ft.Page):
 
+def main(page: ft.Page):
     page.title = "MilaDow - Media Downloader & Player"
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 15
@@ -46,31 +48,6 @@ def main(page: ft.Page):
             page.window.icon = ICON_ICO
         except Exception:
             pass
-
-    # ==========================================
-    # SPLASH SCREEN
-    # ==========================================
-    splash_logo = ft.Image(src=ICON_PNG, width=120, height=120, fit="contain", border_radius=20) \
-        if os.path.exists(ICON_PNG) else ft.Icon(ft.Icons.FILE_DOWNLOAD_ROUNDED, size=80, color=ft.Colors.AMBER_400)
-
-    splash_view = ft.Container(
-        content=ft.Column(
-            [
-                ft.Container(height=80),
-                splash_logo,
-                ft.Container(height=15),
-                ft.Text("MilaDow", size=42, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                ft.Text("Descargador y Reproductor Multimedia", size=14, color=ft.Colors.GREY_400),
-                ft.Container(height=30),
-                ft.ProgressRing(width=36, height=36, stroke_width=3, color=ft.Colors.AMBER_400),
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        ),
-        alignment=ft.Alignment(0, 0),
-        expand=True,
-        visible=True
-    )
 
     # ==========================================
     # VISTAS DINÁMICAS Y NAVEGACIÓN
@@ -120,35 +97,29 @@ def main(page: ft.Page):
         bgcolor=ft.Colors.GREY_900
     )
 
-    main_view = ft.Column([body_container], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
+    # Cargar vista del descargador por defecto
+    body_container.content = get_downloader_view(page)
+    page.add(ft.Column([body_container], horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True))
+    page.update()
 
-    page.add(splash_view, main_view)
-
-    async def run_splash_transition():
-        # Cargar vista del descargador por defecto
-        body_container.content = get_downloader_view(page)
-        
-        await asyncio.sleep(1.8)
-        splash_view.visible = False
-        main_view.visible = True
-        page.update()
-
-        # Solicitar permisos DESPUÉS de que la UI esté visible
-        # (el PermissionHandler necesita que la página esté renderizada)
+    # Pedir permisos justo después de que la UI esté visible
+    async def request_android_permissions():
+        await asyncio.sleep(0.8)  # Esperar a que Flutter renderice la UI
         try:
             ph = fph.PermissionHandler()
             page.overlay.append(ph)
-            page.update()  # importante: registrar el control antes de usarlo
-            await asyncio.sleep(0.5)
+            page.update()
+            await asyncio.sleep(0.3)  # Dar tiempo a que el PermissionHandler se registre
             await ph.request(fph.Permission.STORAGE)
             await ph.request(fph.Permission.AUDIO)
             await ph.request(fph.Permission.VIDEOS)
             await ph.request(fph.Permission.PHOTOS)
             await ph.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
         except Exception as ex:
-            print(f"Permisos no disponibles: {ex}")
+            print(f"Permisos no disponibles (normal en desktop): {ex}")
 
-    page.run_task(run_splash_transition)
+    page.run_task(request_android_permissions)
+
 
 if __name__ == "__main__":
     ft.app(target=main, view=ft.AppView.FLET_APP)

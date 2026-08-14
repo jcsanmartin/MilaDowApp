@@ -357,7 +357,10 @@ def get_player_view(page: ft.Page):
                     alignment=ft.Alignment(0, 0), padding=40
                 )
             )
-            if list_container.page: list_container.update()
+            try:
+                list_container.update()
+            except Exception:
+                pass
             return
 
         # 5. Lista Alfabética
@@ -392,9 +395,11 @@ def get_player_view(page: ft.Page):
             )
             list_container.controls.append(tile)
 
-        # Se evita llamar update() a menos que ya estemos en la página
-        if list_container.page:
+        # Solo actualizar si ya está montada en la página
+        try:
             list_container.update()
+        except Exception:
+            pass  # Aún no montado — los controles ya están listos para cuando se renderice
 
     def scan_device_media():
         nonlocal scanned_media
@@ -404,8 +409,9 @@ def get_player_view(page: ft.Page):
         playing_state['playlist'] = scanned_media
         render_media_list()
 
-    # Inicializar estado visual
+    # Inicializar estado visual — NO llamar scan aquí, el container aún no está en la página.
+    # scan_device_media() se llama desde el botón 'Escanear' o se puede agregar en page.on_mount.
     main_container.content = list_view_container
-    scan_device_media()
+    render_media_list()  # render vacío inicial (sin archivos)
 
     return main_container
