@@ -142,7 +142,7 @@ def get_player_view(page: ft.Page):
                 ft.Container(
                     width=40, height=40, border_radius=5, bgcolor=ft.Colors.GREY_800,
                     content=ft.Icon(ft.Icons.MUSIC_NOTE, size=20, color=ft.Colors.WHITE),
-                    image_fit=ft.ImageFit.COVER
+                    image_fit="cover"
                 ),
                 ft.Column([mini_title, mini_subtitle], spacing=0, expand=True),
                 mini_play_btn,
