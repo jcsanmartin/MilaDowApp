@@ -1,6 +1,7 @@
 import flet as ft
 import os
 import math
+import flet_audio as fta
 from media_player import MediaLibrary
 
 def get_player_view(page: ft.Page):
@@ -29,18 +30,18 @@ def get_player_view(page: ft.Page):
         s = int(secs)
         return f"{s//60}:{s%60:02d}"
 
-    # Controles de Audio/Video invisibles inyectados a la página
+    # Controles de Audio/Video invisibles
     def on_audio_position(e):
-        playing_state['position'] = int(e.data) / 1000.0
+        playing_state['position'] = e.position / 1000.0
         update_progress_ui()
 
     def on_audio_duration(e):
-        playing_state['duration'] = int(e.data) / 1000.0
+        playing_state['duration'] = e.duration.in_seconds
         update_progress_ui()
 
     def on_audio_complete(e):
-        if e.data == "completed":
-            next_track()
+        if e.state == fta.AudioState.COMPLETED:
+            page.run_task(next_track)
 
     # ==========================================
     # VISTA NOW PLAYING (PANTALLA COMPLETA)
@@ -56,17 +57,17 @@ def get_player_view(page: ft.Page):
     np_time_start = ft.Text("0:00", size=12, color=ft.Colors.GREY_400)
     np_time_end = ft.Text("0:00", size=12, color=ft.Colors.GREY_400)
 
-    def on_seek(e):
+    async def on_seek(e):
         if playing_state['audio_ctrl'] and playing_state['duration'] > 0:
             pos_secs = (e.control.value / 100) * playing_state['duration']
             try:
-                playing_state['audio_ctrl'].seek(int(pos_secs * 1000))
+                await playing_state['audio_ctrl'].seek(int(pos_secs * 1000))
             except Exception:
                 pass
 
-    np_progress_slider.on_change_end = on_seek
+    np_progress_slider.on_change_end = lambda e: page.run_task(on_seek, e)
 
-    np_play_btn = ft.IconButton(icon=ft.Icons.PLAY_ARROW_ROUNDED, icon_size=42, icon_color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800, on_click=lambda e: toggle_play_pause())
+    np_play_btn = ft.IconButton(icon=ft.Icons.PLAY_ARROW_ROUNDED, icon_size=42, icon_color=ft.Colors.WHITE, bgcolor=ft.Colors.GREY_800, on_click=lambda e: page.run_task(toggle_play_pause))
     
     # Arte del álbum estilo cassette moderno
     np_album_art = ft.Container(
@@ -112,9 +113,9 @@ def get_player_view(page: ft.Page):
             # Controls
             ft.Row([
                 ft.IconButton(ft.Icons.SHUFFLE, icon_color=ft.Colors.WHITE, icon_size=24),
-                ft.IconButton(ft.Icons.SKIP_PREVIOUS_ROUNDED, icon_color=ft.Colors.WHITE, icon_size=36, on_click=lambda e: prev_track()),
+                ft.IconButton(ft.Icons.SKIP_PREVIOUS_ROUNDED, icon_color=ft.Colors.WHITE, icon_size=36, on_click=lambda e: page.run_task(prev_track)),
                 np_play_btn,
-                ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_color=ft.Colors.WHITE, icon_size=36, on_click=lambda e: next_track()),
+                ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_color=ft.Colors.WHITE, icon_size=36, on_click=lambda e: page.run_task(next_track)),
                 ft.IconButton(ft.Icons.REPEAT, icon_color=ft.Colors.WHITE, icon_size=24),
             ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
         ])
@@ -127,12 +128,12 @@ def get_player_view(page: ft.Page):
     # ── Mini Player Inferior ──
     mini_title = ft.Text("Sin reproducción", size=13, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
     mini_subtitle = ft.Text("", size=11, color=ft.Colors.WHITE70)
-    mini_play_btn = ft.IconButton(ft.Icons.PLAY_ARROW_ROUNDED, icon_color=ft.Colors.WHITE, on_click=lambda e: toggle_play_pause())
+    mini_play_btn = ft.IconButton(ft.Icons.PLAY_ARROW_ROUNDED, icon_color=ft.Colors.WHITE, on_click=lambda e: page.run_task(toggle_play_pause))
     mini_progress = ft.ProgressBar(value=0, color=ft.Colors.WHITE, bgcolor=ft.Colors.TRANSPARENT, height=2)
     
     mini_player = ft.Container(
         visible=False,
-        bgcolor="#6A90A4", # Color suave
+        bgcolor="#6A90A4", 
         border_radius=10,
         padding=ft.Padding(10, 5, 10, 5),
         margin=ft.Margin(10, 0, 10, 10),
@@ -145,7 +146,7 @@ def get_player_view(page: ft.Page):
                 ),
                 ft.Column([mini_title, mini_subtitle], spacing=0, expand=True),
                 mini_play_btn,
-                ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_color=ft.Colors.WHITE, on_click=lambda e: next_track()),
+                ft.IconButton(ft.Icons.SKIP_NEXT_ROUNDED, icon_color=ft.Colors.WHITE, on_click=lambda e: page.run_task(next_track)),
             ], spacing=10),
             mini_progress
         ], spacing=0)
@@ -188,16 +189,20 @@ def get_player_view(page: ft.Page):
         main_container.content = now_playing_view
         if main_container.page: main_container.update()
 
-    def play_media_item(item):
-        if not item: return
-        
-        # Detener anterior
+    async def stop_current_audio():
         if playing_state['audio_ctrl']:
             try:
-                playing_state['audio_ctrl'].pause()
+                await playing_state['audio_ctrl'].pause()
+                await playing_state['audio_ctrl'].release()
                 if playing_state['audio_ctrl'] in page.overlay:
                     page.overlay.remove(playing_state['audio_ctrl'])
             except Exception: pass
+            playing_state['audio_ctrl'] = None
+
+    async def play_media_item(item):
+        if not item: return
+        
+        await stop_current_audio()
             
         playing_state['file'] = item
         playing_state['is_playing'] = True
@@ -221,39 +226,41 @@ def get_player_view(page: ft.Page):
             np_subtitle.value = "Video"
             mini_subtitle.value = "Video"
             np_album_art.content = ft.Icon(ft.Icons.MOVIE, size=100, color=ft.Colors.GREY_600)
-            # Todo: Para simplificar, videos se reproducen como audio en background por ahora o requerirían control de video
         else:
             np_subtitle.value = "Artista desconocido"
             mini_subtitle.value = "Artista desconocido"
             np_album_art.content = ft.Icon(ft.Icons.ALBUM, size=150, color=ft.Colors.GREY_600)
 
-        # Crear nuevo control de audio
-        audio_ctrl = ft.Audio(
+        # Crear nuevo control de flet-audio
+        audio_ctrl = fta.Audio(
             src=item['path'], autoplay=True,
-            on_duration_changed=on_audio_duration,
-            on_position_changed=on_audio_position,
-            on_state_changed=on_audio_complete,
+            on_duration_change=on_audio_duration,
+            on_position_change=on_audio_position,
+            on_state_change=on_audio_complete,
         )
         page.overlay.append(audio_ctrl)
         playing_state['audio_ctrl'] = audio_ctrl
         
+        page.update()
+        try:
+            await audio_ctrl.play()
+        except Exception:
+            pass
+            
         update_play_pause_buttons()
         mini_player.visible = True
         
         if main_container.page:
             mini_player.update()
             now_playing_view.update()
-            
-        # Refresh lista para highlight (opcional)
-        # render_media_list()
 
-    def toggle_play_pause():
+    async def toggle_play_pause():
         if playing_state['audio_ctrl']:
             if playing_state['is_playing']:
-                playing_state['audio_ctrl'].pause()
+                await playing_state['audio_ctrl'].pause()
                 playing_state['is_playing'] = False
             else:
-                playing_state['audio_ctrl'].resume()
+                await playing_state['audio_ctrl'].resume()
                 playing_state['is_playing'] = True
             update_play_pause_buttons()
 
@@ -272,26 +279,29 @@ def get_player_view(page: ft.Page):
             np_time_start.value = fmt_time(playing_state['position'])
             np_time_end.value = fmt_time(playing_state['duration'])
             
-            # Solo actualizar si están visibles para evitar carga
+            # Solo actualizar si están visibles
             if main_container.page:
                 if main_container.content == list_view_container:
-                    mini_progress.update()
+                    try: mini_progress.update()
+                    except Exception: pass
                 else:
-                    np_progress_slider.update()
-                    np_time_start.update()
-                    np_time_end.update()
+                    try:
+                        np_progress_slider.update()
+                        np_time_start.update()
+                        np_time_end.update()
+                    except Exception: pass
 
-    def prev_track():
+    async def prev_track():
         if not playing_state['playlist']: return
         idx = playing_state['index'] - 1
         if idx < 0: idx = len(playing_state['playlist']) - 1
-        play_media_item(playing_state['playlist'][idx])
+        await play_media_item(playing_state['playlist'][idx])
 
-    def next_track():
+    async def next_track():
         if not playing_state['playlist']: return
         idx = playing_state['index'] + 1
         if idx >= len(playing_state['playlist']): idx = 0
-        play_media_item(playing_state['playlist'][idx])
+        await play_media_item(playing_state['playlist'][idx])
 
     # ==========================================
     # CONSTRUCCIÓN DE LA LISTA
@@ -310,10 +320,16 @@ def get_player_view(page: ft.Page):
             height=45,
             content_padding=ft.Padding(10, 0, 10, 0)
         )
+        
+        def open_drawer(e):
+            page.drawer.open = True
+            page.update()
+
         list_container.controls.append(ft.Row([
+            ft.IconButton(ft.Icons.MENU, icon_color=ft.Colors.WHITE, on_click=open_drawer),
+            ft.Container(search_bar, expand=True),
             ft.IconButton(ft.Icons.TUNE, icon_color=ft.Colors.WHITE),
-            ft.Container(search_bar, expand=True)
-        ]))
+        ], vertical_alignment=ft.CrossAxisAlignment.CENTER))
 
         # 2. Colored Cards
         list_container.controls.append(
@@ -357,10 +373,8 @@ def get_player_view(page: ft.Page):
                     alignment=ft.Alignment(0, 0), padding=40
                 )
             )
-            try:
-                list_container.update()
-            except Exception:
-                pass
+            try: list_container.update()
+            except Exception: pass
             return
 
         # 5. Lista Alfabética
@@ -391,15 +405,14 @@ def get_player_view(page: ft.Page):
                 ]),
                 ink=True,
                 padding=ft.Padding(0, 5, 0, 5),
-                on_click=lambda e, it=item: play_media_item(it)
+                on_click=lambda e, it=item: page.run_task(play_media_item, it)
             )
             list_container.controls.append(tile)
 
-        # Solo actualizar si ya está montada en la página
         try:
             list_container.update()
         except Exception:
-            pass  # Aún no montado — los controles ya están listos para cuando se renderice
+            pass
 
     def scan_device_media():
         nonlocal scanned_media
@@ -409,9 +422,8 @@ def get_player_view(page: ft.Page):
         playing_state['playlist'] = scanned_media
         render_media_list()
 
-    # Inicializar estado visual — NO llamar scan aquí, el container aún no está en la página.
-    # scan_device_media() se llama desde el botón 'Escanear' o se puede agregar en page.on_mount.
+    # Inicializar estado visual
     main_container.content = list_view_container
-    render_media_list()  # render vacío inicial (sin archivos)
+    render_media_list()  
 
     return main_container

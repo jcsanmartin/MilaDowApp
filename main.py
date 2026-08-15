@@ -81,22 +81,6 @@ def main(page: ft.Page):
         on_change=navigate_drawer
     )
 
-    def open_drawer(e):
-        page.drawer.open = True
-        page.update()
-
-    page.appbar = ft.AppBar(
-        leading=ft.IconButton(
-            icon=ft.Icons.MENU,
-            tooltip="Menú Principal",
-            on_click=open_drawer,
-            icon_color=ft.Colors.WHITE,
-        ),
-        title=view_title,
-        center_title=True,
-        bgcolor=ft.Colors.GREY_900
-    )
-
     # Cargar vista del descargador por defecto
     body_container.content = get_downloader_view(page)
     page.add(ft.Column([body_container], horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True))

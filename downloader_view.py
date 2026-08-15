@@ -303,7 +303,18 @@ def get_downloader_view(page: ft.Page):
     # Re-renderizar opciones iniciales de carga
     rebuild_options_row()
 
+    def open_drawer(e):
+        page.drawer.open = True
+        page.update()
+
+    header_row = ft.Row([
+        ft.IconButton(icon=ft.Icons.MENU, icon_color=ft.Colors.WHITE, on_click=open_drawer, tooltip="Abrir Menú"),
+        ft.Text("Descargador Multimedia", size=18, weight=ft.FontWeight.BOLD, expand=True)
+    ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
     downloader_content = ft.Column([
+        header_row,
+        ft.Divider(height=10, color=ft.Colors.GREY_800),
         platform_nav_row,
         ft.Container(height=5),
         url_input,
