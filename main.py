@@ -107,9 +107,6 @@ def main(page: ft.Page):
         await asyncio.sleep(0.8)  # Esperar a que Flutter renderice la UI
         try:
             ph = fph.PermissionHandler()
-            page.overlay.append(ph)
-            page.update()
-            await asyncio.sleep(0.3)  # Dar tiempo a que el PermissionHandler se registre
             await ph.request(fph.Permission.STORAGE)
             await ph.request(fph.Permission.AUDIO)
             await ph.request(fph.Permission.VIDEOS)
