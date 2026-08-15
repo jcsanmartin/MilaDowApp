@@ -190,10 +190,14 @@ def get_downloader_view(page: ft.Page):
                 controls.append(ft.Row([cookies_file_path, cookies_file_btn], spacing=5, alignment=ft.MainAxisAlignment.CENTER))
 
         options_container.controls = controls
-        if options_container.page:
+        try:
             options_container.update()
-        if url_input.page:
+        except Exception:
+            pass
+        try:
             url_input.update()
+        except Exception:
+            pass
 
     def on_platform_change(e):
         platform = get_current_platform()
